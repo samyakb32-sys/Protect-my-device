@@ -1,0 +1,182 @@
+package com.protectmydevice.ui
+
+import android.Manifest
+import android.app.admin.DevicePolicyManager
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import com.protectmydevice.admin.AdminReceiver
+import com.protectmydevice.data.Command
+import com.protectmydevice.data.DeviceInfo
+import com.protectmydevice.data.DeviceRepository
+import com.protectmydevice.location.TrackingService
+import com.protectmydevice.security.SimMonitor
+import com.protectmydevice.ui.screens.HomeScreen
+import com.protectmydevice.ui.screens.LoginBusy
+import com.protectmydevice.ui.screens.LoginScreen
+import com.protectmydevice.ui.screens.Protection
+import com.protectmydevice.ui.screens.label
+import com.protectmydevice.ui.theme.ProtectTheme
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+
+/** Wires Firebase, permissions and device admin to the stateless screens in `ui/screens`. */
+class MainActivity : ComponentActivity() {
+    /** Bumped whenever we come back to the foreground, so permission/admin state is re-read. */
+    private var resumes by mutableIntStateOf(0)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+        setContent { ProtectTheme { App() } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumes++
+    }
+
+    @Composable
+    private fun App() {
+        var loggedIn by remember { mutableStateOf(Firebase.auth.currentUser != null) }
+        if (!loggedIn) Login { loggedIn = true } else Home { Firebase.auth.signOut(); loggedIn = false }
+    }
+
+    @Composable
+    private fun Login(onDone: () -> Unit) {
+        var error by remember { mutableStateOf("") }
+        var busy by remember { mutableStateOf(LoginBusy.NONE) }
+        val scope = rememberCoroutineScope()
+        fun attempt(kind: LoginBusy, email: String, pass: String) {
+            busy = kind; error = ""
+            scope.launch {
+                runCatching {
+                    if (kind == LoginBusy.CREATE) Firebase.auth.createUserWithEmailAndPassword(email, pass).await()
+                    else Firebase.auth.signInWithEmailAndPassword(email, pass).await()
+                }.onSuccess { onDone() }.onFailure { error = it.message.orEmpty(); busy = LoginBusy.NONE }
+            }
+        }
+        LoginScreen(
+            error = error, busy = busy,
+            onSignIn = { e, p -> attempt(LoginBusy.SIGN_IN, e, p) },
+            onCreateAccount = { e, p -> attempt(LoginBusy.CREATE, e, p) },
+        )
+    }
+
+    private fun granted(permission: String) =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+    @Composable
+    private fun Home(onSignOut: () -> Unit) {
+        val repo = remember { DeviceRepository(this) }
+        val scope = rememberCoroutineScope()
+        val snackbar = remember { SnackbarHostState() }
+        fun say(message: String) {
+            if (message.isNotEmpty()) scope.launch {
+                snackbar.currentSnackbarData?.dismiss()
+                snackbar.showSnackbar(message)
+            }
+        }
+
+        var devices by remember { mutableStateOf<List<DeviceInfo>>(emptyList()) }
+        var refreshing by remember { mutableStateOf(false) }
+        var permissionResults by remember { mutableIntStateOf(0) }
+        val trackingRunning by TrackingService.running.collectAsState()
+        val protection = remember(resumes, permissionResults, trackingRunning) {
+            val location = granted(Manifest.permission.ACCESS_FINE_LOCATION)
+            Protection(
+                tracking = location && trackingRunning,
+                locationGranted = location,
+                alwaysLocation = location &&
+                    (Build.VERSION.SDK_INT < 29 || granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)),
+                admin = AdminReceiver.isActive(this),
+            )
+        }
+
+        val perms = buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.CAMERA)
+            add(Manifest.permission.READ_PHONE_STATE)
+            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+        }.toTypedArray()
+        val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            SimMonitor.saveBaseline(this)
+            TrackingService.start(this)
+            permissionResults++
+            say(
+                if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) "tracking is on"
+                else "can't track without location access"
+            )
+        }
+        val bgLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+            permissionResults++
+        }
+
+        fun refresh() = scope.launch {
+            refreshing = true
+            devices = runCatching { repo.myDevices() }.getOrDefault(devices)
+            refreshing = false
+        }
+        LaunchedEffect(Unit) {
+            runCatching { repo.register() }
+            refresh()
+        }
+
+        HomeScreen(
+            protection = protection,
+            devices = devices,
+            thisDeviceId = repo.deviceId,
+            refreshing = refreshing,
+            snackbar = snackbar,
+            onStartTracking = { permLauncher.launch(perms) },
+            onAllowAlways = {
+                if (Build.VERSION.SDK_INT >= 29) bgLocation.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            },
+            onEnableAdmin = {
+                startActivity(
+                    Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                        .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, AdminReceiver.component(this))
+                        .putExtra(
+                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            getString(com.protectmydevice.R.string.admin_explanation),
+                        )
+                )
+            },
+            onTrustSim = { SimMonitor.saveBaseline(this); say("got it — this SIM is trusted now") },
+            onRefresh = { refresh() },
+            onSignOut = onSignOut,
+            onOpenMap = { d ->
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${d.lat},${d.lng}?q=${d.lat},${d.lng}(${d.name})")))
+                }.onFailure { say("no maps app on this phone") }
+            },
+            onCommand = { d, c ->
+                val message = if (c == Command.LOST_MODE) "This phone is lost. Please call the owner." else ""
+                scope.launch {
+                    runCatching { repo.sendCommand(d.id, c, message) }
+                        .onSuccess { say("${c.label} sent to ${d.name}") }
+                        .onFailure { say(it.message.orEmpty()) }
+                }
+            },
+        )
+    }
+}

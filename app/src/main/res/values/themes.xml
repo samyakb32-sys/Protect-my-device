@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.ProtectMyDevice" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:colorAccent">@color/brand_ink</item>
+    </style>
+
+    <!-- Lost-mode screen is always hazard yellow, whatever the system theme. -->
+    <style name="Theme.ProtectMyDevice.Lost">
+        <item name="android:windowBackground">@color/brand_hazard</item>
+    </style>
+</resources>
