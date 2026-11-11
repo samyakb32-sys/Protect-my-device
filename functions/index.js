@@ -5,7 +5,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 
 initializeApp();
 
-const ALLOWED = ["LOCATE", "LOCK", "ALARM", "STOP_ALARM", "LOST_MODE", "WIPE"];
+const ALLOWED = ["LOCATE", "LOCK", "ALARM", "STOP_ALARM", "LOST_MODE", "WIPE", "STOLEN_MODE", "SAFE", "PHOTO"];
 
 // Owner writes devices/{id}/commands/{cid} -> forward to the phone as a high-priority FCM data message.
 exports.forwardCommand = onDocumentCreated("devices/{deviceId}/commands/{cid}", async (event) => {

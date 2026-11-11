@@ -3,4 +3,6 @@
     <string name="admin_explanation">Needed so you can remotely lock or erase this phone if it is lost or stolen.</string>
     <string name="tracking_channel">Device protection</string>
     <string name="tracking_notification">Protection is active</string>
+    <string name="power_guard_label">Block power-off while locked</string>
+    <string name="power_guard_description">Closes the power menu while this phone is locked, so someone who has taken it cannot simply switch it off. It only watches for the system power menu and reads nothing else on screen.</string>
 </resources>

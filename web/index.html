@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>protect my device</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="mark" viewBox="26 22 56 64">
+      <path fill-rule="evenodd" d="M54,26 L77,34.5 V53 C77,67.5 67.5,78.5 54,83 C40.5,78.5 31,67.5 31,53 V34.5 Z M43.75,52 a10.25,10.25 0 1,0 20.5,0 a10.25,10.25 0 1,0 -20.5,0 Z M47.25,52 a6.75,6.75 0 1,0 13.5,0 a6.75,6.75 0 1,0 -13.5,0 Z M50.8,52 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0 Z"/>
+    </symbol>
+  </svg>
+
+  <!-- Sign in -->
+  <main id="login" class="login" hidden>
+    <div class="brand"><span class="mark"><svg><use href="#mark"/></svg></span><span>protect my device</span></div>
+    <h1 class="shout">find it.<br><mark>lock it.</mark><br>wipe it.</h1>
+    <p class="aside"><span class="sticker hazard tilt">from any browser</span> same account as the app.</p>
+    <form id="login-form" novalidate>
+      <label>email<input id="email" type="email" autocomplete="username" placeholder="you@example.com" required></label>
+      <label>password<input id="password" type="password" autocomplete="current-password" placeholder="your password" required></label>
+      <p id="login-error" class="alert" role="alert" hidden></p>
+      <button class="btn lime wide" type="submit">sign in</button>
+    </form>
+    <p class="fine">accounts are made in the app. this page only works for phones you set up before they went missing.</p>
+  </main>
+
+  <!-- Config missing -->
+  <main id="setup" class="login" hidden>
+    <div class="brand"><span class="mark"><svg><use href="#mark"/></svg></span><span>protect my device</span></div>
+    <h1 class="shout small">not wired up <mark>yet.</mark></h1>
+    <p>Paste your Firebase web config into <code>web/firebase-config.js</code>, then reload. Until then you can look around with <a href="?demo">made-up sample data</a>.</p>
+  </main>
+
+  <!-- Dashboard -->
+  <div id="dash" hidden>
+    <header class="top">
+      <div class="brand"><span class="mark"><svg><use href="#mark"/></svg></span><span>protect my device</span></div>
+      <span id="demo-flag" class="sticker hazard" hidden>sample data</span>
+      <span id="who" class="who"></span>
+      <button id="signout" class="btn card compact" type="button">sign out</button>
+    </header>
+    <div class="layout">
+      <aside>
+        <h2><span class="num">01</span>your devices</h2>
+        <div id="devices" class="stack"></div>
+      </aside>
+      <section id="detail" class="stack"></section>
+    </div>
+  </div>
+
+  <dialog id="erase">
+    <form method="dialog">
+      <div class="danger-bar">NO UNDO</div>
+      <div class="pad">
+        <h3 id="erase-title">erase?</h3>
+        <p>this factory-resets the phone. everything on it is gone for good, and you won't be able to track or lock it afterwards.</p>
+        <label>type ERASE to confirm<input id="erase-check" autocomplete="off" spellcheck="false"></label>
+        <div class="row">
+          <button class="btn card" value="cancel">keep it</button>
+          <button class="btn coral" id="erase-go" value="go" disabled>erase it</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" hidden></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -54,6 +55,20 @@
             android:exported="false"
             android:foregroundServiceType="camera" />
 
+        <!-- Experimental: closes the power menu while the phone is locked. Off until the owner enables it. -->
+        <service
+            android:name=".security.PowerMenuGuard"
+            android:exported="true"
+            android:label="@string/power_guard_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/power_menu_guard" />
+        </service>
+
         <service
             android:name=".fcm.CommandService"
             android:exported="false">
@@ -79,7 +94,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.BATTERY_LOW" />
             </intent-filter>
         </receiver>
     </application>

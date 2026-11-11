@@ -82,6 +82,9 @@ val Command.label: String
         Command.LOCK -> "lock"
         Command.LOST_MODE -> "lost mode"
         Command.WIPE -> "erase"
+        Command.STOLEN_MODE -> "stolen mode"
+        Command.SAFE -> "all clear"
+        Command.PHOTO -> "photo"
     }
 
 @Composable
@@ -90,11 +93,14 @@ fun HomeScreen(
     devices: List<DeviceInfo>,
     thisDeviceId: String?,
     refreshing: Boolean,
+    powerGuardOn: Boolean,
     snackbar: SnackbarHostState,
     onStartTracking: () -> Unit,
     onAllowAlways: () -> Unit,
     onEnableAdmin: () -> Unit,
     onTrustSim: () -> Unit,
+    onPowerGuard: () -> Unit,
+    onFindHub: () -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
     onOpenMap: (DeviceInfo) -> Unit,
@@ -131,8 +137,11 @@ fun HomeScreen(
                 item { SimRow(onTrustSim) }
                 item { ImeiTip() }
 
+                item { SectionTitle("02", "extra armour") }
+                item { ArmourCard(powerGuardOn, onPowerGuard, onFindHub) }
+
                 item {
-                    SectionTitle("02", "your devices") {
+                    SectionTitle("03", "your devices") {
                         BrutalIconButton(R.drawable.ic_refresh, "Refresh devices", onRefresh, loading = refreshing)
                     }
                 }
@@ -242,6 +251,47 @@ private fun SetupCard(p: Protection, onStartTracking: () -> Unit, onAllowAlways:
     }
 }
 
+/** Things beyond the basic setup: one experimental trick of ours, and the system network that works when we can't. */
+@Composable
+private fun ArmourCard(powerGuardOn: Boolean, onPowerGuard: () -> Unit, onFindHub: () -> Unit) {
+    val b = LocalBrutal.current
+    val type = MaterialTheme.typography
+    BrutalBox(Modifier.fillMaxWidth()) {
+        Column {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("block power-off", style = type.titleMedium, color = b.onCard)
+                        Sticker(if (powerGuardOn) "on" else "experimental", color = if (powerGuardOn) Lime else Hazard)
+                    }
+                    Text(
+                        "closes the power menu while the phone is locked, so a thief can't just switch it off. " +
+                            "turn it on under accessibility. won't stop a forced restart.",
+                        style = type.bodySmall, color = b.muted,
+                    )
+                }
+                if (!powerGuardOn) {
+                    Spacer(Modifier.width(10.dp))
+                    BrutalButton("set up", onPowerGuard, compact = true)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(Outline).background(b.line))
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("find it when it's off", style = type.titleMedium, color = b.onCard)
+                    Text(
+                        "no app can report from a dead phone — only google's find hub network can, on phones " +
+                            "built for it. switch it on, set to “with network in all areas”.",
+                        style = type.bodySmall, color = b.muted,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                BrutalButton("open", onFindHub, color = b.card, contentColor = b.onCard, compact = true)
+            }
+        }
+    }
+}
+
 @Composable
 private fun StepRow(
     number: String,
@@ -344,7 +394,7 @@ private fun DeviceCard(d: DeviceInfo, isThisPhone: Boolean, onOpenMap: () -> Uni
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(d.name, style = type.titleLarge, color = b.onCard, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        (if (isThisPhone) "THIS PHONE · " else "") + if (hasLocation) "LAST SPOT SAVED" else "NO LOCATION YET",
+                        (if (isThisPhone) "THIS PHONE · " else "") + lastSeen(d, hasLocation),
                         style = type.labelSmall, color = b.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -361,6 +411,33 @@ private fun DeviceCard(d: DeviceInfo, isThisPhone: Boolean, onOpenMap: () -> Uni
             }
 
             Spacer(Modifier.height(14.dp))
+            if (d.stolen) {
+                val shape = RoundedCornerShape(14.dp)
+                Column(
+                    Modifier.fillMaxWidth().clip(shape).background(Hazard).border(Outline, b.line, shape).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Sticker("stolen mode", color = Ink, contentColor = Hazard, outline = Ink, icon = R.drawable.ic_shield_alert)
+                        Text("pinging every 10 min", style = type.titleSmall, color = Ink)
+                    }
+                    BrutalButton(
+                        "got it back — all clear", { onCommand(Command.SAFE) }, Modifier.fillMaxWidth(),
+                        color = Lime, icon = R.drawable.ic_shield_check,
+                    )
+                }
+            } else {
+                BrutalButton(
+                    "it's been stolen", { onCommand(Command.STOLEN_MODE) }, Modifier.fillMaxWidth(),
+                    color = Hazard, icon = R.drawable.ic_shield_alert,
+                )
+                Text(
+                    "locks it, shows the lost screen, takes a photo and reports its location every 10 minutes.",
+                    Modifier.padding(top = 6.dp, end = 4.dp), style = type.bodySmall, color = b.muted,
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ActionTile(Command.LOCATE, R.drawable.ic_locate, Lime, Modifier.weight(1f), onCommand)
@@ -370,8 +447,12 @@ private fun DeviceCard(d: DeviceInfo, isThisPhone: Boolean, onOpenMap: () -> Uni
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ActionTile(Command.LOCK, R.drawable.ic_lock, Lilac, Modifier.weight(1f), onCommand)
                     ActionTile(Command.LOST_MODE, R.drawable.ic_lost, b.card, Modifier.weight(1f), onCommand)
-                    ActionTile(Command.WIPE, R.drawable.ic_erase, Coral, Modifier.weight(1f)) { confirmErase = true }
+                    ActionTile(Command.PHOTO, R.drawable.ic_camera, b.card, Modifier.weight(1f), onCommand)
                 }
+                BrutalButton(
+                    "erase everything", { confirmErase = true }, Modifier.fillMaxWidth().padding(top = 6.dp),
+                    color = Coral, icon = R.drawable.ic_erase,
+                )
             }
         }
     }
@@ -381,6 +462,17 @@ private fun DeviceCard(d: DeviceInfo, isThisPhone: Boolean, onOpenMap: () -> Uni
             confirmErase = false
             onCommand(Command.WIPE)
         }
+    }
+}
+
+private fun lastSeen(d: DeviceInfo, hasLocation: Boolean): String {
+    val seen = d.lastSeenMs ?: return if (hasLocation) "LAST SPOT SAVED" else "NO LOCATION YET"
+    val minutes = ((System.currentTimeMillis() - seen) / 60_000).coerceAtLeast(0)
+    return "SEEN " + when {
+        minutes < 1 -> "JUST NOW"
+        minutes < 60 -> "$minutes MIN AGO"
+        minutes < 48 * 60 -> "${minutes / 60} H AGO"
+        else -> "${minutes / (24 * 60)} D AGO"
     }
 }
 

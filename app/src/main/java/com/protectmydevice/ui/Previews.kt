@@ -16,16 +16,16 @@ import com.protectmydevice.ui.theme.ProtectTheme
 
 internal val SampleDevices = listOf(
     DeviceInfo("a", "Nothing Phone (2a)", 19.076, 72.8777, 82),
-    DeviceInfo("b", "Samsung Galaxy A54", null, null, 12),
+    DeviceInfo("b", "Samsung Galaxy A54", 19.0596, 72.8295, 12, stolen = true, lastSeenMs = System.currentTimeMillis() - 4 * 60_000),
 )
 
 @Composable
 internal fun HomePreview(dark: Boolean, done: Int) = ProtectTheme(darkTheme = dark) {
     HomeScreen(
         protection = Protection(tracking = done >= 1, locationGranted = done >= 1, alwaysLocation = done >= 2, admin = done >= 3),
-        devices = SampleDevices, thisDeviceId = "a", refreshing = false,
+        devices = SampleDevices, thisDeviceId = "a", refreshing = false, powerGuardOn = done >= 3,
         snackbar = remember { SnackbarHostState() },
-        onStartTracking = {}, onAllowAlways = {}, onEnableAdmin = {}, onTrustSim = {},
+        onStartTracking = {}, onAllowAlways = {}, onEnableAdmin = {}, onTrustSim = {}, onPowerGuard = {}, onFindHub = {},
         onRefresh = {}, onSignOut = {}, onOpenMap = {}, onCommand = { _, _ -> },
     )
 }

@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -30,6 +31,7 @@ import com.protectmydevice.data.Command
 import com.protectmydevice.data.DeviceInfo
 import com.protectmydevice.data.DeviceRepository
 import com.protectmydevice.location.TrackingService
+import com.protectmydevice.security.PowerMenuGuard
 import com.protectmydevice.security.SimMonitor
 import com.protectmydevice.ui.screens.HomeScreen
 import com.protectmydevice.ui.screens.LoginBusy
@@ -146,6 +148,7 @@ class MainActivity : ComponentActivity() {
             devices = devices,
             thisDeviceId = repo.deviceId,
             refreshing = refreshing,
+            powerGuardOn = remember(resumes) { PowerMenuGuard.isEnabled(this) },
             snackbar = snackbar,
             onStartTracking = { permLauncher.launch(perms) },
             onAllowAlways = {
@@ -162,6 +165,15 @@ class MainActivity : ComponentActivity() {
                 )
             },
             onTrustSim = { SimMonitor.saveBaseline(this); say("got it — this SIM is trusted now") },
+            onPowerGuard = {
+                runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                say("find “block power-off while locked” in the list and switch it on")
+            },
+            onFindHub = {
+                // No public deep link exists for Find Hub; try Google's own settings action, else Security.
+                runCatching { startActivity(Intent("com.google.android.gms.settings.FIND_MY_DEVICE_SETTINGS")) }
+                    .recoverCatching { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
+            },
             onRefresh = { refresh() },
             onSignOut = onSignOut,
             onOpenMap = { d ->
@@ -170,10 +182,16 @@ class MainActivity : ComponentActivity() {
                 }.onFailure { say("no maps app on this phone") }
             },
             onCommand = { d, c ->
-                val message = if (c == Command.LOST_MODE) "This phone is lost. Please call the owner." else ""
+                val message = when (c) {
+                    Command.LOST_MODE, Command.STOLEN_MODE -> "This phone is lost. Please call the owner."
+                    else -> ""
+                }
                 scope.launch {
                     runCatching { repo.sendCommand(d.id, c, message) }
-                        .onSuccess { say("${c.label} sent to ${d.name}") }
+                        .onSuccess {
+                            say("${c.label} sent to ${d.name}")
+                            if (c == Command.STOLEN_MODE || c == Command.SAFE) refresh()
+                        }
                         .onFailure { say(it.message.orEmpty()) }
                 }
             },
