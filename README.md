@@ -17,7 +17,20 @@ Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, a
 ## Important notes
 - Write down your IMEI (`*#06#`) and file a police complaint + block it via India's CEIR / Sanchar Saathi portal.
 - Also keep Google *Find Hub* (Find My Device) / Samsung Find enabled — they work with no SIM.
-- Remote wipe is destructive; the UI requires a second tap to confirm.
+- Remote wipe is destructive; the UI asks for confirmation in a separate "no undo" dialog.
+
+## Design
+Loud on purpose: flat acid colours, 2dp ink outlines, hard offset shadows that buttons physically drop onto when pressed, lowercase copy. No gradients, no blur.
+
+| Sign in | Home | Setup in progress | Dark | Lost mode |
+|---|---|---|---|---|
+| <img src="docs/screenshots/login.png" width="170"> | <img src="docs/screenshots/home_done.png" width="170"> | <img src="docs/screenshots/home_setup.png" width="170"> | <img src="docs/screenshots/home_dark.png" width="170"> | <img src="docs/screenshots/lost.png" width="170"> |
+
+- **Colour** (`ui/theme/Color.kt`): Ink `#111111`, Paper `#F3EFE6`, Lime `#C8FF2E` (protected / primary action), Hazard `#FFD23F` (needs attention, lost mode), Lilac `#C3B3FF` (info), Coral `#FF5A40` (destructive). Coloured blocks always carry ink text, in light and dark.
+- **Type** (`ui/theme/Type.kt`): Bricolage Grotesque for everything you read, DM Mono for tags and numbers. Both are bundled in `res/font` under the SIL Open Font License (`licenses/`).
+- **Building blocks** (`ui/components/Brutal.kt`): `BrutalBox`, `BrutalButton`, `BrutalPressable`, `Sticker`, `BrandMark`. Icons are 24dp stroke vectors in `res/drawable`.
+- **Screens** (`ui/screens/`) are stateless; `MainActivity` wires them to Firebase and permissions, and `ui/Previews.kt` renders them in Android Studio with sample data.
+- The lost-mode screen is deliberately not playful: it is hazard yellow in every theme and addressed to whoever is holding the phone.
 
 ## Tests
 `./gradlew test`

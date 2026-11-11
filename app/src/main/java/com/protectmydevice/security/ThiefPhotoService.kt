@@ -36,7 +36,7 @@ class ThiefPhotoService : LifecycleService() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel("photo", "Security check", NotificationManager.IMPORTANCE_LOW))
         val n: Notification = NotificationCompat.Builder(this, "photo")
-            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setSmallIcon(com.protectmydevice.R.drawable.ic_shield)
             .setContentTitle("Security check")
             .build()
         startForeground(2, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
