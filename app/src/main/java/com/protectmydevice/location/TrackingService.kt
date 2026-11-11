@@ -23,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -57,8 +59,10 @@ class TrackingService : Service() {
             .setMinUpdateIntervalMillis(interval / 2)
             .build()
         client.removeLocationUpdates(callback)
-        if (hasLocationPermission()) client.requestLocationUpdates(request, callback, mainLooper)
-        else stopSelf()
+        if (hasLocationPermission()) {
+            client.requestLocationUpdates(request, callback, mainLooper)
+            _running.value = true
+        } else stopSelf()
         return START_STICKY
     }
 
@@ -72,7 +76,8 @@ class TrackingService : Service() {
             NotificationChannel(CHANNEL, getString(R.string.tracking_channel), NotificationManager.IMPORTANCE_LOW)
         )
         val n: Notification = NotificationCompat.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(R.drawable.ic_shield_check)
+            .setColor(ContextCompat.getColor(this, R.color.brand_ink))
             .setContentTitle(getString(R.string.tracking_notification))
             .setOngoing(true)
             .build()
@@ -80,6 +85,7 @@ class TrackingService : Service() {
     }
 
     override fun onDestroy() {
+        _running.value = false
         client.removeLocationUpdates(callback)
         scope.cancel()
         super.onDestroy()
@@ -92,6 +98,10 @@ class TrackingService : Service() {
         const val EXTRA_URGENT = "urgent"
         private const val NORMAL_MS = 5 * 60_000L
         private const val URGENT_MS = 15_000L
+
+        private val _running = MutableStateFlow(false)
+        /** True while location updates are being reported; the home screen shows this as "tracking on". */
+        val running: StateFlow<Boolean> = _running
 
         fun start(context: Context, urgent: Boolean = false) {
             ContextCompat.startForegroundService(
