@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /devices/{deviceId} {
+      // A device doc can be created once by a signed-in user (who becomes owner); afterwards only the owner touches it.
+      allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.owner == request.auth.uid;
+
+      match /{sub=**} {
+        allow read, write: if request.auth != null &&
+          get(/databases/$(database)/documents/devices/$(deviceId)).data.owner == request.auth.uid;
+      }
+    }
+  }
+}
