@@ -1,0 +1,18 @@
+{
+  "name": "protect-my-device-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run test:functions && npm run test:backend && npm run test:hosting",
+    "test:backend": "firebase emulators:exec --only auth,firestore,storage --project demo-protect --config ../firebase.json \"node --test --test-concurrency=1 --test-timeout=120000 rules.test.js dashboard.test.js\"",
+    "test:hosting": "firebase emulators:exec --only hosting --project demo-protect --config ../firebase.json \"node --test --test-timeout=120000 csp.test.js\"",
+    "test:functions": "node --test functions.test.js",
+    "emulators": "firebase emulators:start --only auth,firestore,storage,hosting --project demo-protect --config ../firebase.json"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.12.2",
+    "firebase-tools": "^13.16.0",
+    "playwright": "^1.45.0"
+  }
+}

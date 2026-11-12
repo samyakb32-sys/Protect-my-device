@@ -58,6 +58,12 @@ class DeviceRepository(private val context: Context) {
         ref.update(mapOf("lastLocation" to data, "lastSeen" to FieldValue.serverTimestamp(), "battery" to batteryPct)).await()
     }
 
+    /** Mirrors stolen mode onto the device doc so the owner's app and the web dashboard can show it. */
+    suspend fun setStolen(on: Boolean) {
+        if (uid == null) return
+        db.collection("devices").document(deviceId).update("stolen", on).await()
+    }
+
     suspend fun logEvent(type: String, extra: Map<String, Any> = emptyMap()) {
         if (uid == null) return
         db.collection("devices").document(deviceId).collection("events")
@@ -77,6 +83,8 @@ class DeviceRepository(private val context: Context) {
                 lat = (last?.get("lat") as? Number)?.toDouble(),
                 lng = (last?.get("lng") as? Number)?.toDouble(),
                 battery = (d.get("battery") as? Number)?.toInt(),
+                stolen = d.getBoolean("stolen") == true,
+                lastSeenMs = d.getTimestamp("lastSeen")?.toDate()?.time,
             )
         }
     }
@@ -87,4 +95,12 @@ class DeviceRepository(private val context: Context) {
     }
 }
 
-data class DeviceInfo(val id: String, val name: String, val lat: Double?, val lng: Double?, val battery: Int?)
+data class DeviceInfo(
+    val id: String,
+    val name: String,
+    val lat: Double?,
+    val lng: Double?,
+    val battery: Int?,
+    val stolen: Boolean = false,
+    val lastSeenMs: Long? = null,
+)

@@ -1,10 +1,15 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Thief photos: any signed-in session of the owner may upload; reading is via owner tooling only.
+    // Thief photos. Only the account that owns the device may upload or view them
+    // (the dashboard and the app both show them, so "any signed-in user" is not enough).
     match /thieves/{deviceId}/{file} {
-      allow create: if request.auth != null && request.resource.size < 5 * 1024 * 1024;
-      allow read: if request.auth != null;
+      function ownsDevice() {
+        return request.auth != null &&
+          firestore.get(/databases/(default)/documents/devices/$(deviceId)).data.owner == request.auth.uid;
+      }
+      allow create: if ownsDevice() && request.resource.size < 5 * 1024 * 1024;
+      allow read: if ownsDevice();
     }
   }
 }
