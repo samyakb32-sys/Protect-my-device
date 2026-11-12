@@ -29,6 +29,16 @@ Tools such as [REA](https://github.com/morluto/rea) ("Reverse Engineer Anything"
 - Release builds are not debuggable, do not allow backup extraction (`allowBackup="false"`), and refuse unencrypted traffic.
 - The website is served with a strict Content-Security-Policy, cannot be framed by another site, and loads its one third-party script with an integrity hash.
 
+## What a teardown of the release APK actually shows
+
+Checked by unpacking a release build and reading it the way a decompiler would:
+
+- Of about 6,700 classes, only 9 keep a readable name, and those are the ones Android itself has to find by name (the two screens, the services and the receivers). Everything else in the app is renamed.
+- No logging calls remain.
+- No password, private key or server credential is in the file. The Firebase project identifiers are, as explained above.
+- The app is not debuggable, backup is off, plain HTTP is refused, and every component other apps can reach is either guarded by a system permission or only restarts protection.
+- Text shown on screen is readable, as it is in every app.
+
 ## What this does not defend against
 
 - **Someone who knows your account password.** They are you, as far as the server can tell. Use a password you use nowhere else.
