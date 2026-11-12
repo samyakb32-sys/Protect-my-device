@@ -67,6 +67,13 @@ input {
 input:focus { box-shadow: 4px 4px 0 var(--shadow); outline: none; }
 input::placeholder { color: var(--muted); opacity: .7; }
 .alert { background: var(--coral); color: var(--ink); border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; font-size: 15px; margin-bottom: 14px; }
+.alert.ok { background: var(--lime); }
+.link { font: 700 15px var(--display); color: var(--fg); background: none; border: 0; padding: 8px 0; margin-top: 10px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+form .btn + .btn { margin-top: 6px; }
+.prose { max-width: 680px; margin: 0 auto; padding: 28px 22px 70px; }
+.prose h2 { font-size: 24px; margin: 30px 0 8px; }
+.prose p, .prose li { margin: 0 0 10px; }
+.prose ul { padding-left: 20px; margin: 0; }
 .fine { color: var(--muted); font-size: 13px; margin-top: 22px; }
 
 /* --- dashboard --- */

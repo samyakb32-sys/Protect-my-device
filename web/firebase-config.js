@@ -7,4 +7,6 @@ export const firebaseConfig = {
   storageBucket: "",
   messagingSenderId: "",
   appId: "",
+  // Optional: a reCAPTCHA Enterprise site key turns on App Check for this site.
+  appCheckSiteKey: "",
 };

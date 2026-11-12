@@ -67,19 +67,32 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Login(onDone: () -> Unit) {
         var error by remember { mutableStateOf("") }
+        var notice by remember { mutableStateOf("") }
         var busy by remember { mutableStateOf(LoginBusy.NONE) }
         val scope = rememberCoroutineScope()
         fun attempt(kind: LoginBusy, email: String, pass: String) {
-            busy = kind; error = ""
+            busy = kind; error = ""; notice = ""
             scope.launch {
                 runCatching {
-                    if (kind == LoginBusy.CREATE) Firebase.auth.createUserWithEmailAndPassword(email, pass).await()
-                    else Firebase.auth.signInWithEmailAndPassword(email, pass).await()
+                    if (kind == LoginBusy.CREATE) {
+                        val created = Firebase.auth.createUserWithEmailAndPassword(email, pass).await()
+                        // Best effort: a confirmed address is what makes password reset trustworthy later.
+                        runCatching { created.user?.sendEmailVerification()?.await() }
+                    } else Firebase.auth.signInWithEmailAndPassword(email, pass).await()
                 }.onSuccess { onDone() }.onFailure { error = it.message.orEmpty(); busy = LoginBusy.NONE }
             }
         }
         LoginScreen(
-            error = error, busy = busy,
+            error = error, notice = notice, busy = busy,
+            onForgotPassword = { email ->
+                error = ""; notice = ""
+                if (email.isBlank()) error = "type your email above, then tap this again."
+                else scope.launch {
+                    // Same message whether or not the address has an account, so this can't be used to probe for one.
+                    runCatching { Firebase.auth.sendPasswordResetEmail(email).await() }
+                    notice = "if $email has an account, a reset link is on its way."
+                }
+            },
             onSignIn = { e, p -> attempt(LoginBusy.SIGN_IN, e, p) },
             onCreateAccount = { e, p -> attempt(LoginBusy.CREATE, e, p) },
         )
@@ -147,6 +160,7 @@ class MainActivity : ComponentActivity() {
             protection = protection,
             devices = devices,
             thisDeviceId = repo.deviceId,
+            accountEmail = Firebase.auth.currentUser?.email.orEmpty(),
             refreshing = refreshing,
             powerGuardOn = remember(resumes) { PowerMenuGuard.isEnabled(this) },
             snackbar = snackbar,

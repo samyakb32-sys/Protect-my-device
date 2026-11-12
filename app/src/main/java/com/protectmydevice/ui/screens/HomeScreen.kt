@@ -92,6 +92,7 @@ fun HomeScreen(
     protection: Protection,
     devices: List<DeviceInfo>,
     thisDeviceId: String?,
+    accountEmail: String,
     refreshing: Boolean,
     powerGuardOn: Boolean,
     snackbar: SnackbarHostState,
@@ -129,7 +130,7 @@ fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item { TopBar(onSignOut) }
+                item { TopBar(accountEmail, onSignOut) }
                 item { StatusHero(protection) }
 
                 item { SectionTitle("01", "this phone") }
@@ -155,16 +156,18 @@ fun HomeScreen(
 }
 
 @Composable
-private fun TopBar(onSignOut: () -> Unit) {
+private fun TopBar(accountEmail: String, onSignOut: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         BrandMark(size = 42.dp)
         Spacer(Modifier.width(10.dp))
-        Text(
-            "protect my device",
-            Modifier.weight(1f),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
+        Column(Modifier.weight(1f)) {
+            Text("protect my device", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+            if (accountEmail.isNotEmpty()) Text(
+                accountEmail, style = MaterialTheme.typography.labelSmall, color = LocalBrutal.current.muted,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
         BrutalIconButton(R.drawable.ic_logout, "Sign out", onSignOut)
     }
 }

@@ -23,7 +23,7 @@ internal val SampleDevices = listOf(
 internal fun HomePreview(dark: Boolean, done: Int) = ProtectTheme(darkTheme = dark) {
     HomeScreen(
         protection = Protection(tracking = done >= 1, locationGranted = done >= 1, alwaysLocation = done >= 2, admin = done >= 3),
-        devices = SampleDevices, thisDeviceId = "a", refreshing = false, powerGuardOn = done >= 3,
+        devices = SampleDevices, thisDeviceId = "a", accountEmail = "you@example.com", refreshing = false, powerGuardOn = done >= 3,
         snackbar = remember { SnackbarHostState() },
         onStartTracking = {}, onAllowAlways = {}, onEnableAdmin = {}, onTrustSim = {}, onPowerGuard = {}, onFindHub = {},
         onRefresh = {}, onSignOut = {}, onOpenMap = {}, onCommand = { _, _ -> },
@@ -35,7 +35,7 @@ internal fun HomePreview(dark: Boolean, done: Int) = ProtectTheme(darkTheme = da
 @Preview(name = "Home · dark", heightDp = 1400) @Composable private fun HomeDark() = HomePreview(dark = true, done = 3)
 
 @Preview(name = "Login") @Composable
-private fun Login() = ProtectTheme(darkTheme = false) { LoginScreen("", LoginBusy.NONE, { _, _ -> }, { _, _ -> }) }
+private fun Login() = ProtectTheme(darkTheme = false) { LoginScreen("", "", LoginBusy.NONE, { _, _ -> }, { _, _ -> }, {}) }
 
 @Preview(name = "Lost mode") @Composable
 private fun Lost() = ProtectTheme(darkTheme = false) { LostModeScreen("This phone is lost. Please call the owner.") }

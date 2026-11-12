@@ -9,6 +9,7 @@ Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, a
 - **Thief detection**: SIM swap → alert + location + front-camera photo; wrong unlock password → photo.
 - **Last-known position**: when the phone is switched off, the battery runs low or airplane mode goes on, it records where it was. If it can't send that right away, it goes out the next time the phone is online.
 - **Block power-off (experimental)**: an accessibility service that closes the power menu while the phone is locked. See the limits below.
+- **Accounts**: email + password, in the app and on the website. Create an account, sign in, reset a forgotten password; one account covers all your phones.
 - **Web dashboard** (`web/`): sign in from any browser to see every phone on the account, its battery, map, location history, alerts and thief photos, and send it commands.
 - **Offline finding (BLE)**: rotating-ID beacon + scanner (`ble/`). Coverage depends on nearby app users.
 
@@ -18,10 +19,14 @@ Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, a
 - **Report without internet.** Location only reaches you over WiFi or mobile data.
 
 ## Setup
+Full step-by-step instructions, including the signed release build, App Check and the Play Store, are in **[DEPLOY.md](DEPLOY.md)**. The short version for trying it out:
 1. Create a Firebase project; add an Android app `com.protectmydevice`; download `google-services.json` into `app/` (git-ignored).
 2. Enable Auth (Email/Password), Firestore, Storage, Cloud Messaging.
-3. `firebase deploy --only firestore:rules,storage,functions` (see `firestore.rules`, `storage.rules`, `functions/`).
+3. `firebase deploy --only firestore:rules,storage,functions,hosting`
 4. `./gradlew assembleDebug`, install on the phone, then follow the 3 steps on the home screen.
+
+## Security
+What a reverse-engineering tool can pull out of the app and the website, and what protects your data anyway, is written up in **[docs/SECURITY.md](docs/SECURITY.md)**. In short: nothing in the client is secret or trusted, access is decided by server-side rules, release builds are obfuscated, and App Check can lock the backend to the genuine app.
 
 ## Important notes
 - Write down your IMEI (`*#06#`) and file a police complaint + block it via India's CEIR / Sanchar Saathi portal.
@@ -29,7 +34,7 @@ Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, a
 - Remote wipe is destructive; the UI asks for confirmation in a separate "no undo" dialog.
 
 ## Web dashboard
-A static site in `web/` with the same look as the app. Sign in with the account you made in the app.
+A static site in `web/` with the same look as the app. Sign in with the same account as the app.
 
 | Dashboard | Phone | Sign in |
 |---|---|---|
@@ -37,7 +42,8 @@ A static site in `web/` with the same look as the app. Sign in with the account 
 
 1. In the Firebase console add a **Web app** to the project and paste its config into `web/firebase-config.js`.
 2. `firebase deploy --only hosting` — the site is then at `https://<project-id>.web.app`.
-3. To look around without Firebase, serve `web/` locally and open it with `?demo` for made-up sample data: `python3 -m http.server -d web 8000`, then `http://localhost:8000/?demo`.
+3. New here? Press "i'm new — make an account" on the sign-in page, or use the account you made in the app.
+4. To look around without Firebase, serve `web/` locally and open it with `?demo` for made-up sample data: `python3 -m http.server -d web 8000`, then `http://localhost:8000/?demo`.
 
 Only the account that owns a device can read its data or photos (`firestore.rules`, `storage.rules`). The map uses OpenStreetMap tiles.
 
@@ -55,4 +61,12 @@ Loud on purpose: flat acid colours, 2dp ink outlines, hard offset shadows that b
 - The lost-mode screen is deliberately not playful: it is hazard yellow in every theme and addressed to whoever is holding the phone.
 
 ## Tests
-`./gradlew test`
+- **App**: `./gradlew :app:testDebugUnitTest :app:lintDebug`
+- **Backend and website** (`tests/`, needs Node 20+ and Java): `cd tests && npm ci && npm test`. This starts the Firebase emulators and runs:
+  - `rules.test.js` — who can and cannot read devices, history, alerts and photos, or send commands;
+  - `dashboard.test.js` — the real website in a real browser: sign-up, sign-in, password reset, a phone appearing live, every action button, stolen mode, erase confirmation, sign-out;
+  - `csp.test.js` — the site still works under its production security headers;
+  - `functions.test.js` — Cloud Function logic, and that the app, rules, function and website agree on the command list.
+- CI (`.github/workflows/ci.yml`) runs all of the above on every pull request.
+
+Not covered by automation: anything that needs a physical phone (push delivery, camera, device admin, the accessibility service). See the checklist at the end of `DEPLOY.md`.

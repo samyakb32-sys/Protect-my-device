@@ -3,7 +3,10 @@
 import { firebaseConfig } from "./firebase-config.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2";
-const DEMO = new URLSearchParams(location.search).has("demo");
+const PARAMS = new URLSearchParams(location.search);
+const DEMO = PARAMS.has("demo");
+// `?emulator` points the page at the local Firebase emulators (see tests/). Only honoured on localhost.
+const EMULATOR = PARAMS.has("emulator") && ["localhost", "127.0.0.1"].includes(location.hostname);
 const LOST_MESSAGE = "This phone is lost. Please call the owner.";
 const $ = (id) => document.getElementById(id);
 
@@ -66,8 +69,17 @@ async function firebaseBackend() {
     import(`${SDK}/firebase-app.js`), import(`${SDK}/firebase-auth.js`),
     import(`${SDK}/firebase-firestore.js`), import(`${SDK}/firebase-storage.js`),
   ]);
-  const app = initializeApp(firebaseConfig);
+  const app = initializeApp(EMULATOR ? { apiKey: "emulator", projectId: "demo-protect", storageBucket: "demo-protect.appspot.com" } : firebaseConfig);
   const a = auth.getAuth(app), db = fs.getFirestore(app), storage = st.getStorage(app);
+  if (EMULATOR) {
+    auth.connectAuthEmulator(a, "http://127.0.0.1:9099", { disableWarnings: true });
+    fs.connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    st.connectStorageEmulator(storage, "127.0.0.1", 9199);
+  } else if (firebaseConfig.appCheckSiteKey) {
+    // Optional: proves requests come from this site, not a script that copied the config.
+    const ac = await import(`${SDK}/firebase-app-check.js`);
+    ac.initializeAppCheck(app, { provider: new ac.ReCaptchaEnterpriseProvider(firebaseConfig.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+  }
   const date = (ts) => (ts && ts.toDate ? ts.toDate() : null);
   const sub = (deviceId, name, max, map) => (cb) => fs.onSnapshot(
     fs.query(fs.collection(db, "devices", deviceId, name), fs.orderBy("time", "desc"), fs.limit(max)),
@@ -77,6 +89,11 @@ async function firebaseBackend() {
   return {
     onUser: (cb) => auth.onAuthStateChanged(a, (u) => cb(u ? { uid: u.uid, email: u.email } : null)),
     signIn: (email, password) => auth.signInWithEmailAndPassword(a, email, password),
+    signUp: async (email, password) => {
+      const created = await auth.createUserWithEmailAndPassword(a, email, password);
+      auth.sendEmailVerification(created.user).catch(() => {});
+    },
+    resetPassword: (email) => auth.sendPasswordResetEmail(a, email),
     signOut: () => auth.signOut(a),
     watchDevices: (uid, cb) => fs.onSnapshot(
       fs.query(fs.collection(db, "devices"), fs.where("owner", "==", uid)),
@@ -110,7 +127,7 @@ function demoBackend() {
   let listener = () => {};
   return {
     onUser: (cb) => cb({ uid: "demo", email: "you@example.com" }),
-    signIn: async () => {}, signOut: async () => { location.search = ""; },
+    signIn: async () => {}, signUp: async () => {}, resetPassword: async () => {}, signOut: async () => { location.search = ""; },
     watchDevices: (_uid, cb) => { listener = cb; cb(devices); return () => {}; },
     watchLocations: (id, cb) => {
       cb(id === devices[0].id
@@ -286,37 +303,60 @@ function renderDetail() {
   drawMap(d);
 }
 
+function authMessage(err) {
+  const code = err.code || "";
+  if (/invalid-credential|wrong-password|user-not-found/.test(code)) return "that email and password don't match an account.";
+  if (/email-already-in-use/.test(code)) return "that email already has an account. sign in instead.";
+  if (/weak-password/.test(code)) return "pick a longer password — at least 6 characters.";
+  if (/invalid-email/.test(code)) return "that doesn't look like an email address.";
+  if (/too-many-requests/.test(code)) return "too many tries. wait a minute and try again.";
+  return err.message || "that didn't work.";
+}
+
 function wire() {
-  $("login-form").addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const box = $("login-error"), btn = ev.target.querySelector("button");
+  const box = $("login-error"), note = $("login-notice");
+  const say = (target, text) => { box.hidden = note.hidden = true; if (text) { target.textContent = text; target.hidden = false; } };
+  async function attempt(action, button) {
     const email = $("email").value.trim(), password = $("password").value;
-    box.hidden = true;
-    if (!email || !password) { box.textContent = "type your email and password first."; box.hidden = false; return; }
-    btn.disabled = true;
+    say(box, "");
+    if (!email || !password) return say(box, "type your email and a password first.");
+    button.disabled = true;
     try {
-      await api.signIn(email, password);
+      await action(email, password);
     } catch (err) {
-      box.textContent = /invalid|wrong|not-found/.test(err.code || "") ? "that email and password don't match an account." : (err.message || "sign-in failed.");
-      box.hidden = false;
+      say(box, authMessage(err));
     } finally {
-      btn.disabled = false;
+      button.disabled = false;
       $("password").value = "";
     }
+  }
+  $("login-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    attempt(api.signIn, ev.target.querySelector("button[type=submit]"));
+  });
+  $("signup").addEventListener("click", (ev) => attempt(api.signUp, ev.currentTarget));
+  $("forgot").addEventListener("click", async () => {
+    const email = $("email").value.trim();
+    if (!email) return say(box, "type your email above, then press this again.");
+    // Same answer whether or not the address has an account, so this can't be used to probe for one.
+    await api.resetPassword(email).catch(() => {});
+    say(note, `if ${email} has an account, a reset link is on its way.`);
   });
   $("signout").addEventListener("click", () => api.signOut());
   setInterval(() => { if (user) { renderDevices(); } }, 60000); // keep "seen 4 min ago" honest
 }
 
 async function start() {
-  if (!DEMO && !firebaseConfig.apiKey) return show("setup");
+  if (!DEMO && !EMULATOR && !firebaseConfig.apiKey) return show("setup");
   api = DEMO ? demoBackend() : await firebaseBackend();
   $("demo-flag").hidden = !DEMO;
   wire();
   api.onUser((u) => {
     user = u;
     stopDevices(); stopDetail();
-    devices = []; selected = null; map = null;
+    devices = []; selected = null; map = null; mapNode = null; locations = []; events = [];
+    // Clear the page itself, not just the variables: a signed-out tab must hold none of the last account's data.
+    renderDevices(); renderDetail();
     if (!u) return show("login");
     $("who").textContent = u.email || "";
     show("dash");

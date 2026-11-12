@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>privacy · protect my device</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="prose">
+  <p><a href="./">← back</a></p>
+  <h1 class="shout small">what this app <mark>collects.</mark></h1>
+  <p>Protect My Device exists to help you find, lock or erase your own phone. To do that it has to collect some sensitive things. This page lists all of them.</p>
+
+  <h2>what is collected</h2>
+  <ul>
+    <li><b>Account:</b> your email address and a password (stored by Firebase Authentication; the password is never visible to us).</li>
+    <li><b>Location:</b> the phone's position, in the background, every 15 minutes, and more often in stolen mode or when you press "locate".</li>
+    <li><b>Photos:</b> a front-camera photo when the wrong unlock code is entered, the SIM is changed, stolen mode starts, or you ask for one.</li>
+    <li><b>Device details:</b> phone model, battery level, a per-install device id, and a fingerprint of the SIM slots (not the phone number or IMEI).</li>
+    <li><b>Security events:</b> SIM changes, wrong unlock attempts, power-off, airplane mode, and commands you send.</li>
+  </ul>
+
+  <h2>who can see it</h2>
+  <p>Only the account that set up the phone. Access is enforced on the server, not in the app. Nothing is sold or shared with advertisers, and there is no analytics or ad code in the app or on this site.</p>
+
+  <h2>where it is kept</h2>
+  <p>In the Google Firebase project run by whoever operates this copy of the app (Authentication, Firestore, Cloud Storage, Cloud Messaging). Map tiles on this site come from OpenStreetMap, which sees the map area you look at.</p>
+
+  <h2>special permissions</h2>
+  <ul>
+    <li><b>Device admin:</b> used only to lock the phone, erase it on your command, and notice wrong unlock attempts.</li>
+    <li><b>Accessibility (optional):</b> used only to close the power menu while the phone is locked. It does not read what is on your screen.</li>
+  </ul>
+
+  <h2>deleting your data</h2>
+  <p>Signing out stops nothing on its own: remove device admin and uninstall the app to stop collection on a phone. To have an account and everything stored for it deleted, contact the operator of this copy of the app.</p>
+
+  <h2>only your own phones</h2>
+  <p>Installing this on someone else's phone to track them without their knowledge is illegal in most places and is not what it is for.</p>
+</main>
+</body>
+</html>
