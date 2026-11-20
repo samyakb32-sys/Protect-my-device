@@ -4,5 +4,5 @@
     <string name="tracking_channel">Device protection</string>
     <string name="tracking_notification">Protection is active</string>
     <string name="power_guard_label">Block power-off while locked</string>
-    <string name="power_guard_description">Closes the power menu while this phone is locked, so someone who has taken it cannot simply switch it off. It only watches for the system power menu and reads nothing else on screen.</string>
+    <string name="power_guard_description">While this phone is locked, closes the power menu and the Quick Settings panel (which has its own power button and airplane mode), so someone who has taken it cannot simply switch it off or cut it off the network. It only looks at the system\'s own lock-screen panels (com.android.systemui), never at other apps, and sends nothing it reads anywhere.</string>
 </resources>

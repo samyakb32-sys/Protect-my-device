@@ -188,6 +188,10 @@ class MainActivity : ComponentActivity() {
                 runCatching { startActivity(Intent("com.google.android.gms.settings.FIND_MY_DEVICE_SETTINGS")) }
                     .recoverCatching { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
             },
+            onPhoneSettings = {
+                runCatching { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
+                    .recoverCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+            },
             onRefresh = { refresh() },
             onSignOut = onSignOut,
             onOpenMap = { d ->

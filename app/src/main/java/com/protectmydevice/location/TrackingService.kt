@@ -175,7 +175,7 @@ class TrackingService : Service() {
     companion object {
         private const val CHANNEL = "protection"
         const val EXTRA_URGENT = "urgent"
-        private const val NORMAL_MS = 15 * 60_000L
+        private const val NORMAL_MS = 150 * 60_000L // every 2.5 hours day to day: easy on the battery
         private const val STOLEN_MS = 10 * 60_000L
         private const val URGENT_MS = 15_000L
         private const val URGENT_WINDOW_MS = 2 * 60_000L

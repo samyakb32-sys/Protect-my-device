@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, doc, setDoc, updateDoc, addDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
+import { getFirestore, connectFirestoreEmulator, doc, setDoc, updateDoc, addDoc, collection, getDocs, serverTimestamp, Timestamp } from "firebase/firestore";
 import { getStorage, connectStorageEmulator, ref, uploadBytes } from "firebase/storage";
 
 const WEB = fileURLToPath(new URL("../web/", import.meta.url));
@@ -150,6 +150,16 @@ test("erase needs the word ERASE typed, and cancelling sends nothing", async () 
   await page.click("#erase-go");
   await page.waitForFunction(() => document.getElementById("toast").textContent.startsWith("erase sent"));
   assert.equal((await commands()).filter((c) => c.cmd === "WIPE").length, 1);
+});
+
+test("a phone that goes quiet is shown offline with its last spot, and comes back when it checks in", async () => {
+  await updateDoc(doc(phone.db, "devices/phone-1"), { stolen: false, lastSeen: Timestamp.fromMillis(Date.now() - 4 * 3600_000) });
+  await page.waitForFunction(() => document.querySelector(".hero h1")?.textContent === "offline.");
+  assert.match(await page.textContent(".hero p"), /4 h ago.*last spot/);
+  assert.equal((await page.textContent(".device .sticker.offline")).trim(), "offline");
+  await updateDoc(doc(phone.db, "devices/phone-1"), { lastSeen: serverTimestamp(), offline: false });
+  await page.waitForFunction(() => document.querySelector(".hero h1")?.textContent === "all good.");
+  assert.equal(await page.locator(".device .sticker.offline").count(), 0);
 });
 
 test("signing out hides everything; a different account sees none of it", async () => {
