@@ -102,6 +102,7 @@ fun HomeScreen(
     onTrustSim: () -> Unit,
     onPowerGuard: () -> Unit,
     onFindHub: () -> Unit,
+    onPhoneSettings: () -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
     onOpenMap: (DeviceInfo) -> Unit,
@@ -139,7 +140,7 @@ fun HomeScreen(
                 item { ImeiTip() }
 
                 item { SectionTitle("02", "extra armour") }
-                item { ArmourCard(powerGuardOn, onPowerGuard, onFindHub) }
+                item { ArmourCard(powerGuardOn, onPowerGuard, onFindHub, onPhoneSettings) }
 
                 item {
                     SectionTitle("03", "your devices") {
@@ -256,7 +257,7 @@ private fun SetupCard(p: Protection, onStartTracking: () -> Unit, onAllowAlways:
 
 /** Things beyond the basic setup: one experimental trick of ours, and the system network that works when we can't. */
 @Composable
-private fun ArmourCard(powerGuardOn: Boolean, onPowerGuard: () -> Unit, onFindHub: () -> Unit) {
+private fun ArmourCard(powerGuardOn: Boolean, onPowerGuard: () -> Unit, onFindHub: () -> Unit, onPhoneSettings: () -> Unit) {
     val b = LocalBrutal.current
     val type = MaterialTheme.typography
     BrutalBox(Modifier.fillMaxWidth()) {
@@ -268,8 +269,9 @@ private fun ArmourCard(powerGuardOn: Boolean, onPowerGuard: () -> Unit, onFindHu
                         Sticker(if (powerGuardOn) "on" else "experimental", color = if (powerGuardOn) Lime else Hazard)
                     }
                     Text(
-                        "closes the power menu while the phone is locked, so a thief can't just switch it off. " +
-                            "turn it on under accessibility. won't stop a forced restart.",
+                        "while the phone is locked, closes the power menu and quick settings (its power button and " +
+                            "airplane mode), so a thief can't just switch it off. turn it on under accessibility. " +
+                            "won't stop a forced restart.",
                         style = type.bodySmall, color = b.muted,
                     )
                 }
@@ -291,9 +293,40 @@ private fun ArmourCard(powerGuardOn: Boolean, onPowerGuard: () -> Unit, onFindHu
                 Spacer(Modifier.width(10.dp))
                 BrutalButton("open", onFindHub, color = b.card, contentColor = b.onCard, compact = true)
             }
+            Box(Modifier.fillMaxWidth().height(Outline).background(b.line))
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("lock down the phone itself", Modifier.weight(1f), style = type.titleMedium, color = b.onCard)
+                    BrutalButton("settings", onPhoneSettings, color = b.card, contentColor = b.onCard, compact = true)
+                }
+                Text(
+                    "things only android can do. names differ by brand — search for them in settings.",
+                    style = type.bodySmall, color = b.muted,
+                )
+                PHONE_SETTINGS.forEach { (title, why) ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("→", style = type.bodySmall, color = b.onCard)
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(color = b.onCard)) { append(title) }
+                                append(" — $why")
+                            },
+                            style = type.bodySmall, color = b.muted,
+                        )
+                    }
+                }
+            }
         }
     }
 }
+
+/** Phone settings that cover what an app can't: forced restarts, factory resets, SIM swaps. */
+private val PHONE_SETTINGS = listOf(
+    "hide quick settings on the lock screen" to "or samsung's “lock network and security”. no power icon, no airplane mode without unlocking.",
+    "theft protection" to "theft detection lock and offline device lock, under google settings.",
+    "stay signed in to google" to "factory reset protection: a wiped phone still asks for your account.",
+    "sim pin" to "a stolen sim can't be used in another phone. an esim can't be pulled out at all.",
+)
 
 @Composable
 private fun StepRow(

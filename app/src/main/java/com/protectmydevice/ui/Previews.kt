@@ -25,7 +25,7 @@ internal fun HomePreview(dark: Boolean, done: Int) = ProtectTheme(darkTheme = da
         protection = Protection(tracking = done >= 1, locationGranted = done >= 1, alwaysLocation = done >= 2, admin = done >= 3),
         devices = SampleDevices, thisDeviceId = "a", accountEmail = "you@example.com", refreshing = false, powerGuardOn = done >= 3,
         snackbar = remember { SnackbarHostState() },
-        onStartTracking = {}, onAllowAlways = {}, onEnableAdmin = {}, onTrustSim = {}, onPowerGuard = {}, onFindHub = {},
+        onStartTracking = {}, onAllowAlways = {}, onEnableAdmin = {}, onTrustSim = {}, onPowerGuard = {}, onFindHub = {}, onPhoneSettings = {},
         onRefresh = {}, onSignOut = {}, onOpenMap = {}, onCommand = { _, _ -> },
     )
 }

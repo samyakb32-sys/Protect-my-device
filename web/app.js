@@ -31,6 +31,7 @@ const EVENT_LABELS = {
   REMOTE_PHOTO: "photo you asked for",
   POWERING_OFF: "phone was switched off",
   POWER_OFF_BLOCKED: "someone tried to power it off (blocked)",
+  QUICK_SETTINGS_BLOCKED: "someone opened quick settings on the lock screen (closed)",
   BATTERY_LOW: "battery running low",
   AIRPLANE_MODE_ON: "airplane mode switched on",
   AIRPLANE_MODE_PHOTO: "photo taken as airplane mode went on",

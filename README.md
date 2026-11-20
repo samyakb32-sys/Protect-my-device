@@ -8,14 +8,14 @@ Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, a
 - **Stolen mode**: one button that locks the phone, puts up the lost screen, takes a front-camera photo and reports location every 10 minutes. It survives reboots and stays on until you mark the phone safe.
 - **Thief detection**: SIM swap → alert + location + front-camera photo; wrong unlock password → photo.
 - **Last-known position**: when the phone is switched off, the battery runs low or airplane mode goes on, it records where it was. If it can't send that right away, it goes out the next time the phone is online.
-- **Block power-off (experimental)**: an accessibility service that closes the power menu while the phone is locked. See the limits below.
+- **Block power-off (experimental)**: an accessibility service that, while the phone is locked, closes the power menu and the Quick Settings panel (its power button and airplane-mode tile). See the limits below.
 - **Accounts**: email + password, in the app and on the website. Create an account, sign in, reset a forgotten password; one account covers all your phones.
 - **Web dashboard** (`web/`): sign in from any browser to see every phone on the account, its battery, map, location history, alerts and thief photos, and send it commands.
 - **Offline finding (BLE)**: rotating-ID beacon + scanner (`ble/`). Coverage depends on nearby app users.
 
 ### What it can't do
 - **Find a phone that is switched off.** No third-party app can transmit from a powered-down phone. Only Google's Find Hub network can, and only on phones built for it (Pixel 8 and later, and some others). Turn it on in Settings and set it to "With network in all areas"; the app's "extra armour" card links there.
-- **Stop a forced shutdown.** The power-off blocker only closes the on-screen power menu. Holding the hardware keys for a forced restart still works, and so does waiting for the battery to die. It also depends on an internal system class name that differs between manufacturers, so test it on your own phone. Sideloaded apps on Android 13+ need "Allow restricted settings" (App info > ⋮) before Accessibility will let you enable it.
+- **Stop a forced shutdown.** The power-off blocker only closes the on-screen power menu and Quick Settings. Holding the hardware keys for a forced restart still works, and so does waiting for the battery to die. It also depends on internal system class and view names that differ between manufacturers, so test it on your own phone. Sideloaded apps on Android 13+ need "Allow restricted settings" (App info > ⋮) before Accessibility will let you enable it.
 - **Report without internet.** Location only reaches you over WiFi or mobile data.
 
 ## Setup
