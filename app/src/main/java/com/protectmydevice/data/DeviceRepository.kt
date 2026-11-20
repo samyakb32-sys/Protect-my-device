@@ -13,7 +13,7 @@ import kotlinx.coroutines.tasks.await
 
 /**
  * Firestore layout (all under the owner's uid):
- *   devices/{deviceId}                 owner, name, fcmToken, lastLocation, lastSeen, battery
+ *   devices/{deviceId}                 owner, name, fcmToken, lastLocation, lastSeen, battery, stolen, offline
  *   devices/{deviceId}/locations/{id}  lat, lng, accuracy, time
  *   devices/{deviceId}/events/{id}     type (SIM_CHANGED, WRONG_PASSWORD, ...), photoPath, time
  *   devices/{deviceId}/commands/{id}   cmd, message  (a Cloud Function forwards it as FCM)
@@ -55,7 +55,12 @@ class DeviceRepository(private val context: Context) {
         )
         val ref = db.collection("devices").document(deviceId)
         ref.collection("locations").add(data).await()
-        ref.update(mapOf("lastLocation" to data, "lastSeen" to FieldValue.serverTimestamp(), "battery" to batteryPct)).await()
+        // The server marks a silent phone offline; coming back is reported from here, where it's known first.
+        val wasOffline = runCatching { ref.get().await().getBoolean("offline") == true }.getOrDefault(false)
+        ref.update(
+            mapOf("lastLocation" to data, "lastSeen" to FieldValue.serverTimestamp(), "battery" to batteryPct, "offline" to false),
+        ).await()
+        if (wasOffline) logEvent("BACK_ONLINE")
     }
 
     /** Mirrors stolen mode onto the device doc so the owner's app and the web dashboard can show it. */
@@ -103,4 +108,8 @@ data class DeviceInfo(
     val battery: Int?,
     val stolen: Boolean = false,
     val lastSeenMs: Long? = null,
-)
+) {
+    /** One missed check-in plus 15 minutes. Must match offlineAfterMs in functions/logic.js and web/app.js. */
+    fun isOffline(nowMs: Long = System.currentTimeMillis()): Boolean =
+        lastSeenMs != null && nowMs - lastSeenMs > ((if (stolen) 10 else 150) + 15) * 60_000L
+}

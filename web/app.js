@@ -36,6 +36,8 @@ const EVENT_LABELS = {
   AIRPLANE_MODE_ON: "airplane mode switched on",
   AIRPLANE_MODE_PHOTO: "photo taken as airplane mode went on",
   WIPE_EXECUTED: "phone was erased",
+  DEVICE_OFFLINE: "went offline — last spot saved",
+  BACK_ONLINE: "back online",
 };
 const COMMAND_SENT = {
   LOCATE: "locate", ALARM: "alarm", STOP_ALARM: "stop", LOCK: "lock", LOST_MODE: "lost mode",
@@ -50,6 +52,10 @@ function ago(date) {
   if (min < 48 * 60) return `${Math.round(min / 60)} h ago`;
   return `${Math.round(min / 1440)} d ago`;
 }
+// One missed check-in plus 15 minutes (every 2.5 h normally, every 10 min in stolen mode).
+// Must match offlineAfterMs in functions/logic.js and DeviceInfo.isOffline in the app.
+const isOffline = (d, now = Date.now()) => !!d.lastSeen && now - d.lastSeen.getTime() > ((d.stolen ? 10 : 150) + 15) * 60000;
+
 const clock = (date) => date
   ? date.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
   : "pending";
@@ -191,7 +197,9 @@ function renderDevices() {
     el("button", { class: "box device", type: "button", "aria-current": String(d.id === selected), onclick: () => select(d.id) },
       el("span", { class: "icon" }),
       el("span", {}, el("b", {}, d.name), el("span", { class: "tag" }, `seen ${ago(d.lastSeen)}`)),
-      el("span", { class: "chips" }, batteryChip(d.battery), d.stolen && el("span", { class: "sticker hazard" }, "stolen")),
+      el("span", { class: "chips" }, batteryChip(d.battery),
+        d.stolen && el("span", { class: "sticker hazard" }, "stolen"),
+        isOffline(d) && el("span", { class: "sticker coral offline" }, "offline")),
     )) : [el("div", { class: "box pad" }, el("b", {}, "nothing here yet."),
       el("p", { class: "fine" }, "install the app on a phone and sign in with this account. it shows up here."))]));
 }
@@ -247,11 +255,16 @@ function renderDetail() {
   const hasSpot = d.lat != null && d.lng != null;
   const button = (label, cmd, tone = "card") => el("button", { class: `btn ${tone}`, type: "button", onclick: () => send(d, cmd) }, label);
 
-  const hero = el("div", { class: `box hero ${d.stolen ? "hazard" : "lime"}` },
-    el("span", { class: "sticker ink", style: `color: var(--${d.stolen ? "hazard" : "lime"})` }, "status"),
-    el("h1", {}, d.stolen ? "stolen mode." : "all good."),
+  const offline = isOffline(d);
+  const tone = d.stolen ? "hazard" : offline ? "coral" : "lime";
+  const lastWord = `last heard from ${ago(d.lastSeen)} (${clock(d.lastSeen)}). it may be switched off, flat or out of signal — the map shows the last spot it sent.`;
+  const hero = el("div", { class: `box hero ${tone}` },
+    el("span", { class: "sticker ink", style: `color: var(--${tone})` }, "status"),
+    el("h1", {}, d.stolen ? "stolen mode." : offline ? "offline." : "all good."),
     el("p", {}, d.stolen
-      ? "locked, showing the lost screen, and reporting where it is every 10 minutes while it has power and internet."
+      ? (offline ? `stolen mode is on, but the phone has gone quiet: ${lastWord}`
+        : "locked, showing the lost screen, and reporting where it is every 10 minutes while it has power and internet.")
+      : offline ? `${d.name} ${lastWord}`
       : `${d.name} last checked in ${ago(d.lastSeen)}. if it goes missing, hit the button.`),
     el("div", { class: "row" }, d.stolen
       ? el("button", { class: "btn lime", type: "button", onclick: () => send(d, "SAFE") }, "got it back — all clear")
@@ -344,7 +357,14 @@ function wire() {
     say(note, `if ${email} has an account, a reset link is on its way.`);
   });
   $("signout").addEventListener("click", () => api.signOut());
-  setInterval(() => { if (user) { renderDevices(); } }, 60000); // keep "seen 4 min ago" honest
+  // Keep "seen 4 min ago" honest, and flip a phone to offline when it goes quiet even if nothing new arrives.
+  let shownOffline = null;
+  setInterval(() => {
+    if (!user) return;
+    renderDevices();
+    const d = devices.find((x) => x.id === selected);
+    if (d && isOffline(d) !== shownOffline) { shownOffline = isOffline(d); renderDetail(); }
+  }, 60000);
 }
 
 async function start() {

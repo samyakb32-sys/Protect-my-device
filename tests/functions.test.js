@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
-const { ALLOWED, commandMessage, alertBody } = createRequire(import.meta.url)("../functions/logic.js");
+const { ALLOWED, commandMessage, alertBody, offlineAfterMs, isOffline } = createRequire(import.meta.url)("../functions/logic.js");
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 test("known commands are forwarded as high-priority data messages", () => {
@@ -28,6 +28,25 @@ test("alert text is readable", () => {
   assert.equal(alertBody("Pixel 8", "SIM_CHANGED"), "Pixel 8: sim changed");
   assert.equal(alertBody("Pixel 8", "POWER_OFF_BLOCKED"), "Pixel 8: power off blocked");
   assert.equal(alertBody(undefined, undefined), "Your phone: alert");
+  assert.equal(alertBody("Pixel 8", "DEVICE_OFFLINE"), "Pixel 8 went offline. Its last spot is saved.");
+  assert.equal(alertBody("Pixel 8", "BACK_ONLINE"), "Pixel 8 is back online.");
+});
+
+test("a phone is offline after one missed check-in plus 15 minutes", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z"), min = 60_000;
+  assert.equal(offlineAfterMs(false), 165 * min); // checks in every 2.5 h
+  assert.equal(offlineAfterMs(true), 25 * min); // every 10 min in stolen mode
+  assert.equal(isOffline(now - 164 * min, false, now), false);
+  assert.equal(isOffline(now - 166 * min, false, now), true);
+  assert.equal(isOffline(now - 26 * min, true, now), true, "stolen phones are flagged sooner");
+  assert.equal(isOffline(null, false, now), false, "never checked in is not the same as offline");
+});
+
+test("phone, function and dashboard use the same offline threshold", () => {
+  const web = read("../web/app.js");
+  assert.match(web, /\(\(d\.stolen \? 10 : 150\) \+ 15\) \* 60000/, "web/app.js");
+  const kotlin = read("../app/src/main/java/com/protectmydevice/data/DeviceRepository.kt");
+  assert.match(kotlin, /\(\(if \(stolen\) 10 else 150\) \+ 15\) \* 60_000L/, "DeviceRepository.kt");
 });
 
 test("phone, function, rules and dashboard all know the same commands", () => {

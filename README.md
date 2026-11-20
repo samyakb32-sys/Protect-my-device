@@ -3,7 +3,7 @@
 Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, and (if needed) wipes **your own** phone **without needing a SIM or IMEI** — it only needs internet (WiFi or mobile data) and has to be set up *before* the phone is lost.
 
 ## Features
-- **Live location** (GPS + WiFi) via a foreground service, restarted after reboot. A fix every 15 minutes day to day, every 10 minutes in stolen mode, every 15 seconds for two minutes after "locate".
+- **Live location** (GPS + WiFi) via a foreground service, restarted after reboot. A fix every 2.5 hours day to day, every 10 minutes in stolen mode, every 15 seconds for two minutes after "locate".
 - **Remote commands** from a second phone or the web dashboard: Locate, Alarm, Lock, Lost-mode message, Take photo, Stolen mode, Erase.
 - **Stolen mode**: one button that locks the phone, puts up the lost screen, takes a front-camera photo and reports location every 10 minutes. It survives reboots and stays on until you mark the phone safe.
 - **Thief detection**: SIM swap → alert + location + front-camera photo; wrong unlock password → photo.

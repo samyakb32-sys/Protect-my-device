@@ -1,8 +1,9 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
-const { commandMessage, alertBody } = require("./logic");
+const { commandMessage, alertBody, offlineAfterMs, isOffline } = require("./logic");
 
 initializeApp();
 
@@ -25,4 +26,28 @@ exports.notifyOwner = onDocumentCreated("devices/{deviceId}/events/{eid}", async
     tokens,
     notification: { title: "Security alert", body: alertBody(device.get("name"), event.data.data().type) },
   });
+});
+
+// Every 10 minutes: a phone that has missed two check-ins is marked offline, once, with a
+// DEVICE_OFFLINE event (which notifyOwner above turns into a push to the owner's other phones).
+// The phone clears the flag itself on its next check-in and logs BACK_ONLINE.
+exports.markOffline = onSchedule("every 10 minutes", async () => {
+  const db = getFirestore();
+  const now = Date.now();
+  // The shortest threshold (stolen mode); the longer one for normal phones is checked per device.
+  const stale = await db.collection("devices")
+    .where("offline", "==", false)
+    .where("lastSeen", "<", new Date(now - offlineAfterMs(true)))
+    .get();
+  for (const doc of stale.docs) {
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(doc.ref); // it may have checked in since the query ran
+      const lastSeen = fresh.get("lastSeen");
+      if (fresh.get("offline") !== false || !isOffline(lastSeen?.toMillis(), fresh.get("stolen") === true, now)) return;
+      tx.update(doc.ref, { offline: true });
+      tx.create(doc.ref.collection("events").doc(), {
+        type: "DEVICE_OFFLINE", lastSeen, lastLocation: fresh.get("lastLocation") || null, time: FieldValue.serverTimestamp(),
+      });
+    });
+  }
 });

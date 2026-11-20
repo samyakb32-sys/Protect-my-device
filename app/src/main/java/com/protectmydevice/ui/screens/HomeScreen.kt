@@ -438,6 +438,16 @@ private fun DeviceCard(d: DeviceInfo, isThisPhone: Boolean, onOpenMap: () -> Uni
                 BatteryChip(d.battery)
             }
 
+            if (d.isOffline() && !isThisPhone) {
+                Spacer(Modifier.height(12.dp))
+                val shape = RoundedCornerShape(12.dp)
+                Text(
+                    "offline — switched off, flat, or no signal. the map shows the last spot it sent.",
+                    Modifier.fillMaxWidth().clip(shape).background(Coral).border(Outline, b.line, shape).padding(10.dp),
+                    style = type.bodySmall, color = Ink,
+                )
+            }
+
             if (hasLocation) {
                 Spacer(Modifier.height(14.dp))
                 BrutalButton(
@@ -504,7 +514,7 @@ private fun DeviceCard(d: DeviceInfo, isThisPhone: Boolean, onOpenMap: () -> Uni
 private fun lastSeen(d: DeviceInfo, hasLocation: Boolean): String {
     val seen = d.lastSeenMs ?: return if (hasLocation) "LAST SPOT SAVED" else "NO LOCATION YET"
     val minutes = ((System.currentTimeMillis() - seen) / 60_000).coerceAtLeast(0)
-    return "SEEN " + when {
+    return (if (d.isOffline()) "OFFLINE · " else "") + "SEEN " + when {
         minutes < 1 -> "JUST NOW"
         minutes < 60 -> "$minutes MIN AGO"
         minutes < 48 * 60 -> "${minutes / 60} H AGO"
