@@ -4,6 +4,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.protectmydevice.admin.AdminReceiver
 import com.protectmydevice.admin.AlarmPlayer
+import com.protectmydevice.battery.BatteryCollector
 import com.protectmydevice.data.Command
 import com.protectmydevice.data.DeviceRepository
 import com.protectmydevice.data.StolenState
@@ -41,6 +42,7 @@ class CommandService : FirebaseMessagingService() {
             Command.STOLEN_MODE -> {
                 val text = message.data["message"].orEmpty()
                 StolenState.set(this, true, text)
+                runCatching { BatteryCollector.collect(this, force = true) } // starts the stolen-mode clock
                 TrackingService.start(this, urgent = true)
                 AdminReceiver.lock(this)
                 LostModeActivity.show(this, text)
@@ -48,6 +50,7 @@ class CommandService : FirebaseMessagingService() {
                 report { setStolen(true); logEvent("STOLEN_MODE_ON") }
             }
             Command.SAFE -> {
+                runCatching { BatteryCollector.collect(this, force = true) } // counts stolen-mode time up to now
                 StolenState.set(this, false)
                 AlarmPlayer.stop()
                 LostModeActivity.dismiss(this)

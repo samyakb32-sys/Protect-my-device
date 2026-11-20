@@ -112,6 +112,21 @@ test("a phone that registers shows up live, with battery, position, history, ale
   await page.waitForSelector("#map .pin");
 });
 
+test("the phone's daily battery summary shows up, estimate marked as such", async () => {
+  await page.waitForSelector("#battery >> text=no days yet.");
+  await setDoc(doc(phone.db, "devices/phone-1/battery/2026-11-18"), {
+    day: "2026-11-18", totalMah: 4.25, measuredMah: 1.1,
+    parts: { location: 1.5, cpu: 0.9, mobile: 1.1, wifi: 0.2, bluetooth: 0, camera: 0.5, wakelocks: 0.05, audio: 0 },
+    counts: { fixesHigh: 2, fixesBalanced: 9, stolenMinutes: 0, locateBursts: 1, photos: 1, alarmSeconds: 0 },
+    phoneDropPct: 31, time: serverTimestamp(),
+  });
+  await page.waitForSelector("#battery >> text=~4.3 mAh");
+  const row = await page.textContent("#battery .list li");
+  assert.match(row, /location 1\.5 · mobile data 1\.1 · processor 0\.9/);
+  assert.match(row, /11 fixes · 1 photo\b/);
+  assert.match(row, /whole phone down at least 31%/);
+});
+
 test("every action button writes exactly the command it says", async () => {
   const buttons = { "locate now": "LOCATE", "alarm": "ALARM", "stop alarm": "STOP_ALARM", "lock": "LOCK", "lost mode": "LOST_MODE", "take photo": "PHOTO" };
   for (const [label, cmd] of Object.entries(buttons)) {

@@ -12,11 +12,41 @@ Android anti-theft app (Kotlin + Firebase). Tracks, locks, sounds an alarm on, a
 - **Accounts**: email + password, in the app and on the website. Create an account, sign in, reset a forgotten password; one account covers all your phones.
 - **Web dashboard** (`web/`): sign in from any browser to see every phone on the account, its battery, map, location history, alerts and thief photos, and send it commands.
 - **Offline finding (BLE)**: rotating-ID beacon + scanner (`ble/`). Coverage depends on nearby app users.
+- **Battery report**: a "battery use" screen (home → extra armour → battery use) showing how much battery *this app* used today and on each of the last 7 days, and which part of the phone it went on. See [Battery report](#battery-report).
 
 ### What it can't do
 - **Find a phone that is switched off.** No third-party app can transmit from a powered-down phone. Only Google's Find Hub network can, and only on phones built for it (Pixel 8 and later, and some others). Turn it on in Settings and set it to "With network in all areas"; the app's "extra armour" card links there.
 - **Stop a forced shutdown.** The power-off blocker only closes the on-screen power menu and Quick Settings. Holding the hardware keys for a forced restart still works, and so does waiting for the battery to die. It also depends on internal system class and view names that differ between manufacturers, so test it on your own phone. Sideloaded apps on Android 13+ need "Allow restricted settings" (App info > ⋮) before Accessibility will let you enable it.
 - **Report without internet.** Location only reaches you over WiFi or mobile data.
+
+## Battery report
+The battery screen answers "how much does this app cost me, and on what?". It shows:
+- **Today's total** in mAh, and as a share of a full battery when the phone reports its battery size.
+- **Where it went**: location (GPS), processor, mobile data, wifi, bluetooth, camera, keeping the phone awake (wakelocks), and sound/alarm. Each part shows how long it was in use, plus its mAh.
+- **What the app did**: location fixes (GPS-grade vs. balanced), minutes in stolen mode, quick-locate bursts, photos taken, and seconds of alarm.
+- **The last 7 days**, one bar per day. Each day also shows how far the whole phone's battery fell, for comparison. That number covers every app and the screen, so it is never presented as this app's number.
+
+**Measured vs. estimated.** Each number is labelled with where it comes from:
+- *Measured*: the phone's own power counters reported the energy (`MEASUREMENT_*_POWER_MAMS`). Android splits these per app only for mobile data, wifi and Bluetooth, and many phones report 0.
+- *Estimated (~)*: everything else. It's the time a part was in use multiplied by a typical current for a mid-range phone (`BatteryReport.kt`). A real phone can draw half or double that. Use these numbers to see which part costs most, not as exact figures.
+
+**How it's collected** (`app/…/battery/`). Android's public `SystemHealthManager.takeMyUidSnapshot()` returns this app's own counters: CPU time, GPS time, camera, audio, wakelocks, radio time and bytes. The app reads it when it is already awake for another reason: a location check-in, a stolen-mode or "all clear" command, the phone shutting down, or the battery screen opening. It takes at most one reading per 20 minutes. That means no new alarms, no wakelocks and no extra location requests. Each reading is stored on the phone as day-by-day differences:
+- When a counter goes backwards, Android has reset the counters (a reboot, or coming off the charger after a full charge). The new value is then counted as fresh use.
+- Use that spans midnight is split between the two days by time.
+- A day's totals are uploaded once to `devices/{id}/battery/{yyyy-mm-dd}` the day after, so the web dashboard can show the week. Only the owner can read them, and they can't be changed afterwards (`firestore.rules`).
+
+**Limits.**
+- The system's own per-app battery screen (BatteryStats) and `PowerProfile` are closed to normal apps, so neither is used.
+- `MEASUREMENT_CPU_POWER_MAMS` has been deprecated since Android 8 ("not reliable"), so processor use is always an estimate.
+- Location fixes made from wifi and cell towers are computed by Google Play services. Android may count that power under Play services rather than this app, so the location line can read low.
+- Not counted: the screen, the BLE beacon's advertising, and any use between the last reading and a crash or forced restart. A normal shutdown takes a reading first.
+- The whole-phone drop is sampled at readings, so charging in between hides some of it (shown as "at least").
+- The first reading after install only sets a starting point. Numbers appear after the next check-in, within 2.5 hours.
+
+**Exact numbers for developers.** `scripts/battery-report.sh` asks a phone connected over USB (adb) for Android's own estimate, `dumpsys batterystats --charged`, and prints this app's mAh per part since the last full charge. Options:
+- `--reset`: zero the stats before a test run.
+- `--bugreport`: save a file for [Battery Historian](https://github.com/google/battery-historian).
+- `--raw`: print Android's line for the app.
 
 ## Setup
 Full step-by-step instructions, including the signed release build, App Check and the Play Store, are in **[DEPLOY.md](DEPLOY.md)**. The short version for trying it out:
@@ -61,12 +91,12 @@ Loud on purpose: flat acid colours, 2dp ink outlines, hard offset shadows that b
 - The lost-mode screen is deliberately not playful: it is hazard yellow in every theme and addressed to whoever is holding the phone.
 
 ## Tests
-- **App**: `./gradlew :app:testDebugUnitTest :app:lintDebug`
+- **App**: `./gradlew :app:testDebugUnitTest :app:lintDebug`. This includes `BatteryLedgerTest`, which covers counter resets, reboots, missing or zero energy fields, splitting at midnight, the 7-day window and storage.
 - **Backend and website** (`tests/`, needs Node 20+ and Java): `cd tests && npm ci && npm test`. This starts the Firebase emulators and runs:
-  - `rules.test.js` — who can and cannot read devices, history, alerts and photos, or send commands;
+  - `rules.test.js` — who can and cannot read devices, history, alerts and photos, or send commands, and that a daily battery summary is owner-only, well-formed and can't be rewritten;
   - `dashboard.test.js` — the real website in a real browser: sign-up, sign-in, password reset, a phone appearing live, every action button, stolen mode, erase confirmation, sign-out;
   - `csp.test.js` — the site still works under its production security headers;
   - `functions.test.js` — Cloud Function logic, and that the app, rules, function and website agree on the command list.
 - CI (`.github/workflows/ci.yml`) runs all of the above on every pull request.
 
-Not covered by automation: anything that needs a physical phone (push delivery, camera, device admin, the accessibility service). See the checklist at the end of `DEPLOY.md`.
+Not covered by automation: anything that needs a physical phone (push delivery, camera, device admin, the accessibility service, and the real values `takeMyUidSnapshot()` returns on a given phone). See the checklist at the end of `DEPLOY.md`.

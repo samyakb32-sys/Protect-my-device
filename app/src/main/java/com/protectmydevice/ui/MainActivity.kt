@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,19 +28,24 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import com.protectmydevice.admin.AdminReceiver
+import com.protectmydevice.battery.BatteryCollector
+import com.protectmydevice.battery.DayReport
 import com.protectmydevice.data.Command
 import com.protectmydevice.data.DeviceInfo
 import com.protectmydevice.data.DeviceRepository
 import com.protectmydevice.location.TrackingService
 import com.protectmydevice.security.PowerMenuGuard
 import com.protectmydevice.security.SimMonitor
+import com.protectmydevice.ui.screens.BatteryScreen
 import com.protectmydevice.ui.screens.HomeScreen
 import com.protectmydevice.ui.screens.LoginBusy
 import com.protectmydevice.ui.screens.LoginScreen
 import com.protectmydevice.ui.screens.Protection
 import com.protectmydevice.ui.screens.label
 import com.protectmydevice.ui.theme.ProtectTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 
 /** Wires Firebase, permissions and device admin to the stateless screens in `ui/screens`. */
@@ -61,7 +67,30 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun App() {
         var loggedIn by remember { mutableStateOf(Firebase.auth.currentUser != null) }
-        if (!loggedIn) Login { loggedIn = true } else Home { Firebase.auth.signOut(); loggedIn = false }
+        var battery by remember { mutableStateOf(false) }
+        when {
+            !loggedIn -> Login { loggedIn = true }
+            battery -> {
+                BackHandler { battery = false }
+                Battery { battery = false }
+            }
+            else -> Home(onBattery = { battery = true }) { Firebase.auth.signOut(); loggedIn = false }
+        }
+    }
+
+    /** Takes a fresh reading on open (the user is looking, so it's worth it), then shows the week. */
+    @Composable
+    private fun Battery(onBack: () -> Unit) {
+        var week by remember { mutableStateOf<List<DayReport>>(emptyList()) }
+        var started by remember { mutableStateOf(true) }
+        LaunchedEffect(resumes) {
+            week = withContext(Dispatchers.IO) {
+                runCatching { BatteryCollector.collect(this@MainActivity) }
+                started = BatteryCollector.started(this@MainActivity)
+                BatteryCollector.week(this@MainActivity)
+            }
+        }
+        BatteryScreen(week, BatteryCollector.capacityMah(this), started, onBack)
     }
 
     @Composable
@@ -102,7 +131,7 @@ class MainActivity : ComponentActivity() {
         ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
     @Composable
-    private fun Home(onSignOut: () -> Unit) {
+    private fun Home(onBattery: () -> Unit, onSignOut: () -> Unit) {
         val repo = remember { DeviceRepository(this) }
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
@@ -192,6 +221,7 @@ class MainActivity : ComponentActivity() {
                 runCatching { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
                     .recoverCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) }
             },
+            onBattery = onBattery,
             onRefresh = { refresh() },
             onSignOut = onSignOut,
             onOpenMap = { d ->

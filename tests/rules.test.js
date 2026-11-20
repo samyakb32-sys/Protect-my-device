@@ -96,6 +96,42 @@ test("a device can't be registered for, or handed to, another account", async ()
   await assertSucceeds(updateDoc(doc(owner.db, "devices/phone"), { battery: 50, stolen: true }));
 });
 
+const batteryDay = (extra = {}) => ({
+  day: "2026-11-18", totalMah: 4.2, measuredMah: 1.1,
+  parts: { location: 1.5, cpu: 0.9, mobile: 1.1, wifi: 0.2, bluetooth: 0, camera: 0.5, wakelocks: 0, audio: 0 },
+  counts: { fixesHigh: 2, fixesBalanced: 9, stolenMinutes: 0, locateBursts: 1, photos: 1, alarmSeconds: 0 },
+  phoneDropPct: 31, time: serverTimestamp(), ...extra,
+});
+
+test("battery report: the owner's phone saves each day once, only the owner reads it", async () => {
+  const day = doc(owner.db, "devices/phone/battery/2026-11-18");
+  await assertSucceeds(setDoc(day, batteryDay()));
+  await assertSucceeds(getDoc(day));
+  await assertSucceeds(getDocs(collection(owner.db, "devices/phone/battery")));
+  // A day's numbers can't be rewritten or removed afterwards.
+  await assertFails(setDoc(day, batteryDay({ totalMah: 0 })));
+  await assertFails(updateDoc(day, { totalMah: 0 }));
+  await assertFails(deleteDoc(day));
+  // Nobody else sees it or writes one.
+  await assertFails(getDoc(doc(stranger.db, "devices/phone/battery/2026-11-18")));
+  await assertFails(getDocs(collection(stranger.db, "devices/phone/battery")));
+  await assertFails(getDoc(doc(nobody.db, "devices/phone/battery/2026-11-18")));
+  await assertFails(setDoc(doc(stranger.db, "devices/phone/battery/2026-11-17"), batteryDay({ day: "2026-11-17" })));
+});
+
+test("battery report: only a well-formed daily summary is accepted", async () => {
+  const at = (id) => doc(owner.db, `devices/phone/battery/${id}`);
+  const { phoneDropPct, ...noPhoneDrop } = batteryDay({ day: "2026-11-17" }); // phones that can't tell leave it out
+  await assertSucceeds(setDoc(at("2026-11-17"), noPhoneDrop));
+  await assertFails(setDoc(at("2026-11-16"), batteryDay()));                         // id and day disagree
+  await assertFails(setDoc(at("yesterday"), batteryDay({ day: "yesterday" })));       // not a date
+  await assertFails(setDoc(at("2026-11-15"), batteryDay({ day: "2026-11-15", totalMah: -1 })));
+  await assertFails(setDoc(at("2026-11-14"), batteryDay({ day: "2026-11-14", totalMah: "lots" })));
+  await assertFails(setDoc(at("2026-11-13"), batteryDay({ day: "2026-11-13", otherApps: { chrome: 90 } })));
+  await assertFails(setDoc(at("2026-11-12"), batteryDay({ day: "2026-11-12", parts: { screen: 40 } })));
+  await assertFails(setDoc(at("2026-11-11"), batteryDay({ day: "2026-11-11", phoneDropPct: "a lot" })));
+});
+
 test("thief photos: only the owning account uploads or views them", async () => {
   const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
   const path = "thieves/phone/shot.jpg";

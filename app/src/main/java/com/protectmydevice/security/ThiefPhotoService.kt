@@ -16,6 +16,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.ktx.storage
+import com.protectmydevice.battery.BatteryCollector
+import com.protectmydevice.battery.Key
 import com.protectmydevice.data.DeviceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +65,10 @@ class ThiefPhotoService : LifecycleService() {
                 ImageCapture.OutputFileOptions.Builder(file).build(),
                 ContextCompat.getMainExecutor(this),
                 object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(output: ImageCapture.OutputFileResults) { upload(file, reason) }
+                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                        runCatching { BatteryCollector.note(this@ThiefPhotoService, Key.PHOTOS) }
+                        upload(file, reason)
+                    }
                     override fun onError(exc: ImageCaptureException) { finish() }
                 },
             )
