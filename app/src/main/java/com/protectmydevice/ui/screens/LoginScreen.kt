@@ -2,6 +2,7 @@ package com.protectmydevice.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.protectmydevice.R
@@ -63,9 +66,11 @@ enum class LoginBusy { NONE, SIGN_IN, CREATE }
 @Composable
 fun LoginScreen(
     error: String,
+    notice: String,
     busy: LoginBusy,
     onSignIn: (email: String, password: String) -> Unit,
     onCreateAccount: (email: String, password: String) -> Unit,
+    onForgotPassword: (email: String) -> Unit,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var pass by rememberSaveable { mutableStateOf("") }
@@ -142,6 +147,16 @@ fun LoginScreen(
                 }
             }
 
+            if (notice.isNotEmpty() && shownError.isEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                val shape = RoundedCornerShape(14.dp)
+                Text(
+                    notice,
+                    Modifier.fillMaxWidth().clip(shape).background(Lime).border(Outline, b.line, shape).padding(12.dp),
+                    style = type.bodyMedium, color = Ink,
+                )
+            }
+
             Spacer(Modifier.height(22.dp))
             BrutalButton(
                 "sign in", onClick = { submit(onSignIn) },
@@ -155,7 +170,18 @@ fun LoginScreen(
                 enabled = busy != LoginBusy.SIGN_IN, loading = busy == LoginBusy.CREATE,
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "forgot your password?",
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(role = Role.Button) { nudge = false; onForgotPassword(email.trim()) }
+                    .padding(vertical = 8.dp),
+                style = type.titleSmall.copy(textDecoration = TextDecoration.Underline),
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+
+            Spacer(Modifier.height(12.dp))
             Text(
                 "set it up before the phone goes missing. it can't help after.",
                 style = type.bodySmall, color = b.muted,

@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -30,6 +31,7 @@ import com.protectmydevice.data.Command
 import com.protectmydevice.data.DeviceInfo
 import com.protectmydevice.data.DeviceRepository
 import com.protectmydevice.location.TrackingService
+import com.protectmydevice.security.PowerMenuGuard
 import com.protectmydevice.security.SimMonitor
 import com.protectmydevice.ui.screens.HomeScreen
 import com.protectmydevice.ui.screens.LoginBusy
@@ -65,19 +67,32 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Login(onDone: () -> Unit) {
         var error by remember { mutableStateOf("") }
+        var notice by remember { mutableStateOf("") }
         var busy by remember { mutableStateOf(LoginBusy.NONE) }
         val scope = rememberCoroutineScope()
         fun attempt(kind: LoginBusy, email: String, pass: String) {
-            busy = kind; error = ""
+            busy = kind; error = ""; notice = ""
             scope.launch {
                 runCatching {
-                    if (kind == LoginBusy.CREATE) Firebase.auth.createUserWithEmailAndPassword(email, pass).await()
-                    else Firebase.auth.signInWithEmailAndPassword(email, pass).await()
+                    if (kind == LoginBusy.CREATE) {
+                        val created = Firebase.auth.createUserWithEmailAndPassword(email, pass).await()
+                        // Best effort: a confirmed address is what makes password reset trustworthy later.
+                        runCatching { created.user?.sendEmailVerification()?.await() }
+                    } else Firebase.auth.signInWithEmailAndPassword(email, pass).await()
                 }.onSuccess { onDone() }.onFailure { error = it.message.orEmpty(); busy = LoginBusy.NONE }
             }
         }
         LoginScreen(
-            error = error, busy = busy,
+            error = error, notice = notice, busy = busy,
+            onForgotPassword = { email ->
+                error = ""; notice = ""
+                if (email.isBlank()) error = "type your email above, then tap this again."
+                else scope.launch {
+                    // Same message whether or not the address has an account, so this can't be used to probe for one.
+                    runCatching { Firebase.auth.sendPasswordResetEmail(email).await() }
+                    notice = "if $email has an account, a reset link is on its way."
+                }
+            },
             onSignIn = { e, p -> attempt(LoginBusy.SIGN_IN, e, p) },
             onCreateAccount = { e, p -> attempt(LoginBusy.CREATE, e, p) },
         )
@@ -145,7 +160,9 @@ class MainActivity : ComponentActivity() {
             protection = protection,
             devices = devices,
             thisDeviceId = repo.deviceId,
+            accountEmail = Firebase.auth.currentUser?.email.orEmpty(),
             refreshing = refreshing,
+            powerGuardOn = remember(resumes) { PowerMenuGuard.isEnabled(this) },
             snackbar = snackbar,
             onStartTracking = { permLauncher.launch(perms) },
             onAllowAlways = {
@@ -162,6 +179,15 @@ class MainActivity : ComponentActivity() {
                 )
             },
             onTrustSim = { SimMonitor.saveBaseline(this); say("got it — this SIM is trusted now") },
+            onPowerGuard = {
+                runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                say("find “block power-off while locked” in the list and switch it on")
+            },
+            onFindHub = {
+                // No public deep link exists for Find Hub; try Google's own settings action, else Security.
+                runCatching { startActivity(Intent("com.google.android.gms.settings.FIND_MY_DEVICE_SETTINGS")) }
+                    .recoverCatching { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }
+            },
             onRefresh = { refresh() },
             onSignOut = onSignOut,
             onOpenMap = { d ->
@@ -170,10 +196,16 @@ class MainActivity : ComponentActivity() {
                 }.onFailure { say("no maps app on this phone") }
             },
             onCommand = { d, c ->
-                val message = if (c == Command.LOST_MODE) "This phone is lost. Please call the owner." else ""
+                val message = when (c) {
+                    Command.LOST_MODE, Command.STOLEN_MODE -> "This phone is lost. Please call the owner."
+                    else -> ""
+                }
                 scope.launch {
                     runCatching { repo.sendCommand(d.id, c, message) }
-                        .onSuccess { say("${c.label} sent to ${d.name}") }
+                        .onSuccess {
+                            say("${c.label} sent to ${d.name}")
+                            if (c == Command.STOLEN_MODE || c == Command.SAFE) refresh()
+                        }
                         .onFailure { say(it.message.orEmpty()) }
                 }
             },

@@ -2,7 +2,6 @@
     <!-- Kept in sync with ui/theme/Color.kt; only what XML (icon, window, notifications) needs. -->
     <color name="brand_lime">#C8FF2E</color>
     <color name="brand_ink">#111111</color>
-    <color name="brand_paper">#F3EFE6</color>
     <color name="brand_hazard">#FFD23F</color>
     <color name="window_background">#F3EFE6</color>
 </resources>

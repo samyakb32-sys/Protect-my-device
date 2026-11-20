@@ -11,6 +11,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.google.firebase.ktx.Firebase
@@ -39,7 +40,8 @@ class ThiefPhotoService : LifecycleService() {
             .setSmallIcon(com.protectmydevice.R.drawable.ic_shield)
             .setContentTitle("Security check")
             .build()
-        startForeground(2, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
+        // ServiceCompat falls back to the two-argument call on Android 8 and 9, where the typed one does not exist.
+        ServiceCompat.startForeground(this, 2, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA)
     }
 
     private fun takePhoto(reason: String) {

@@ -1,15 +1,36 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /devices/{deviceId} {
-      // A device doc can be created once by a signed-in user (who becomes owner); afterwards only the owner touches it.
-      allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
-      allow read, update, delete: if request.auth != null && resource.data.owner == request.auth.uid;
+    function signedIn() { return request.auth != null; }
 
-      match /{sub=**} {
-        allow read, write: if request.auth != null &&
+    match /devices/{deviceId} {
+      function owns() {
+        return signedIn() &&
           get(/databases/$(database)/documents/devices/$(deviceId)).data.owner == request.auth.uid;
       }
+
+      // A signed-in user registers a device under their own uid and nobody else's.
+      allow create: if signedIn() && request.resource.data.owner == request.auth.uid;
+      allow read, delete: if signedIn() && resource.data.owner == request.auth.uid;
+      // The owner can update their device but can never hand it to another account.
+      allow update: if signedIn() && resource.data.owner == request.auth.uid
+        && request.resource.data.owner == resource.data.owner;
+
+      // Commands: only the owner, only known commands, and they can't be edited afterwards
+      // (a Cloud Function forwards each one to the phone the moment it is created).
+      match /commands/{id} {
+        allow read: if owns();
+        allow create: if owns()
+          && request.resource.data.keys().hasOnly(['cmd', 'message', 'time'])
+          && request.resource.data.cmd in
+             ['LOCATE', 'LOCK', 'ALARM', 'STOP_ALARM', 'LOST_MODE', 'WIPE', 'STOLEN_MODE', 'SAFE', 'PHOTO']
+          && request.resource.data.message is string
+          && request.resource.data.message.size() <= 500;
+      }
+
+      // Location history and security events: append-only for the owner.
+      match /locations/{id} { allow read, create: if owns(); }
+      match /events/{id} { allow read, create: if owns(); }
     }
   }
 }
