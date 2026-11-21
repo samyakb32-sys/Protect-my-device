@@ -43,6 +43,8 @@ The battery screen answers "how much does this app cost me, and on what?". It sh
 - The whole-phone drop is sampled at readings, so charging in between hides some of it (shown as "at least").
 - The first reading after install only sets a starting point. Numbers appear after the next check-in, within 2.5 hours.
 
+**Trying it without Firebase.** Debug builds have a **test the battery screen** button on the sign-in page. It asks for location, starts tracking (so there is something to measure) and opens the battery screen without an account. Nothing is synced, so the website part can't be tested this way. Release builds never show the button (`BuildFlags.kt` in `src/debug` and `src/release`).
+
 **Exact numbers for developers.** `scripts/battery-report.sh` asks a phone connected over USB (adb) for Android's own estimate, `dumpsys batterystats --charged`, and prints this app's mAh per part since the last full charge. Options:
 - `--reset`: zero the stats before a test run.
 - `--bugreport`: save a file for [Battery Historian](https://github.com/google/battery-historian).

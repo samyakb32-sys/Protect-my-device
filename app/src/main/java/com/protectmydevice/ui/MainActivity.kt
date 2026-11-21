@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import com.protectmydevice.BATTERY_TEST_ENTRY
 import com.protectmydevice.admin.AdminReceiver
 import com.protectmydevice.battery.BatteryCollector
 import com.protectmydevice.battery.DayReport
@@ -68,12 +69,23 @@ class MainActivity : ComponentActivity() {
     private fun App() {
         var loggedIn by remember { mutableStateOf(Firebase.auth.currentUser != null) }
         var battery by remember { mutableStateOf(false) }
+        // Test builds: battery screen without an account. Location is needed so tracking (what gets measured) runs.
+        val batteryTest = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            if (granted(Manifest.permission.ACCESS_FINE_LOCATION)) TrackingService.start(this)
+            battery = true
+        }
+        val testPermissions = buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+        }.toTypedArray()
         when {
-            !loggedIn -> Login { loggedIn = true }
             battery -> {
                 BackHandler { battery = false }
                 Battery { battery = false }
             }
+            !loggedIn -> Login(
+                onBatteryTest = if (BATTERY_TEST_ENTRY) ({ batteryTest.launch(testPermissions) }) else null,
+            ) { loggedIn = true }
             else -> Home(onBattery = { battery = true }) { Firebase.auth.signOut(); loggedIn = false }
         }
     }
@@ -94,7 +106,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun Login(onDone: () -> Unit) {
+    private fun Login(onBatteryTest: (() -> Unit)?, onDone: () -> Unit) {
         var error by remember { mutableStateOf("") }
         var notice by remember { mutableStateOf("") }
         var busy by remember { mutableStateOf(LoginBusy.NONE) }
@@ -124,6 +136,7 @@ class MainActivity : ComponentActivity() {
             },
             onSignIn = { e, p -> attempt(LoginBusy.SIGN_IN, e, p) },
             onCreateAccount = { e, p -> attempt(LoginBusy.CREATE, e, p) },
+            onBatteryTest = onBatteryTest,
         )
     }
 
