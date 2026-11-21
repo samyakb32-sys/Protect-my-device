@@ -9,6 +9,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.FirebaseMessaging
+import com.protectmydevice.battery.DayReport
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -17,6 +18,7 @@ import kotlinx.coroutines.tasks.await
  *   devices/{deviceId}/locations/{id}  lat, lng, accuracy, time
  *   devices/{deviceId}/events/{id}     type (SIM_CHANGED, WRONG_PASSWORD, ...), photoPath, time
  *   devices/{deviceId}/commands/{id}   cmd, message  (a Cloud Function forwards it as FCM)
+ *   devices/{deviceId}/battery/{day}   this app's own battery use for one finished day (see battery/)
  */
 class DeviceRepository(private val context: Context) {
     private val db = Firebase.firestore
@@ -73,6 +75,17 @@ class DeviceRepository(private val context: Context) {
         if (uid == null) return
         db.collection("devices").document(deviceId).collection("events")
             .add(extra + mapOf("type" to type, "time" to FieldValue.serverTimestamp())).await()
+    }
+
+    /**
+     * Queues one finished day of this app's battery use. Not awaited: Firestore keeps the write on
+     * disk until the phone is online. Returns false when nobody is signed in (nothing was queued).
+     */
+    fun uploadBatteryDay(report: DayReport): Boolean {
+        if (uid == null) return false
+        db.collection("devices").document(deviceId).collection("battery").document(report.date.toString())
+            .set(report.toUpload() + ("time" to FieldValue.serverTimestamp()))
+        return true
     }
 
     // ---- Owner side ----

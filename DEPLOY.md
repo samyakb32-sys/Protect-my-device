@@ -53,7 +53,13 @@ This app asks for permissions Google reviews by hand. Expect to fill in declarat
 - **Background location** — a short video showing the feature, and the in-app disclosure.
 - **Device admin** and **Accessibility** — a declaration of the anti-theft use. The accessibility service is the most likely reason for rejection; if it is refused, remove `PowerMenuGuard` from the manifest and resubmit.
 - **Privacy policy URL** — use `https://<project-id>.web.app/privacy.html` and edit `web/privacy.html` to name you as the operator and give a contact address.
-- **Data safety form** — location, photos, email address and device identifiers are collected; none are shared.
+- **Data safety form** — location, photos, email address, device identifiers and app diagnostics (this app's own daily battery use) are collected; none are shared.
 
 ## 6. Before you rely on it
 Set it up on a spare phone and, from the website, try each of: locate, alarm, lock, lost mode, take photo, stolen mode, all clear. Then switch the phone off and on again and confirm it reappears. The automated tests cover the backend and the website; they do not cover a real phone.
+
+Battery report, on that phone:
+- After a day of normal use, open **battery use**. Today should show a total and a per-part breakdown. Note which parts say "measured": that tells you whether this phone reports energy counters.
+- Compare with Android's own figures: `scripts/battery-report.sh` over USB, or Settings → Battery. Expect the same order of magnitude, not the same number (one is since the last full charge, the other per calendar day).
+- Reboot, use the phone for a few hours, and check the day's totals keep growing rather than jumping or going negative.
+- The next day, check yesterday appears under **battery use** on the website.

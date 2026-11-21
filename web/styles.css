@@ -131,3 +131,9 @@ dialog .row .btn { flex: 1; }
   #map { height: 300px; }
 }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+
+/* Battery use: one bar per day. Lime when the phone measured it, hazard when it's an estimate. */
+#battery .meter { grid-column: 1 / -1; height: 10px; border: 2px solid var(--line); border-radius: 5px; overflow: hidden; }
+#battery .meter > span { display: block; height: 100%; }
+#battery .list .fine { grid-column: 1 / -1; margin: 0; }
+#battery .pad-x { padding: 0 16px 14px; margin: 0; }

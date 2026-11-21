@@ -103,6 +103,7 @@ fun HomeScreen(
     onPowerGuard: () -> Unit,
     onFindHub: () -> Unit,
     onPhoneSettings: () -> Unit,
+    onBattery: () -> Unit,
     onRefresh: () -> Unit,
     onSignOut: () -> Unit,
     onOpenMap: (DeviceInfo) -> Unit,
@@ -141,6 +142,7 @@ fun HomeScreen(
 
                 item { SectionTitle("02", "extra armour") }
                 item { ArmourCard(powerGuardOn, onPowerGuard, onFindHub, onPhoneSettings) }
+                item { BatteryRow(onBattery) }
 
                 item {
                     SectionTitle("03", "your devices") {
@@ -375,6 +377,24 @@ private fun SimRow(onTrustSim: () -> Unit) {
             }
             Spacer(Modifier.width(10.dp))
             BrutalButton("it's mine", onTrustSim, color = b.card, contentColor = b.onCard, compact = true)
+        }
+    }
+}
+
+@Composable
+private fun BatteryRow(onBattery: () -> Unit) {
+    val b = LocalBrutal.current
+    val type = MaterialTheme.typography
+    BrutalBox(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(R.drawable.ic_battery), null, Modifier.size(26.dp), tint = b.onCard)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("battery use", style = type.titleMedium, color = b.onCard)
+                Text("how much this app uses, and on what, over the last 7 days.", style = type.bodySmall, color = b.muted)
+            }
+            Spacer(Modifier.width(10.dp))
+            BrutalButton("see", onBattery, color = b.card, contentColor = b.onCard, compact = true)
         }
     }
 }

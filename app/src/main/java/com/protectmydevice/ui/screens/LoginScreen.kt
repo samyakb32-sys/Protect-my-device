@@ -71,6 +71,8 @@ fun LoginScreen(
     onSignIn: (email: String, password: String) -> Unit,
     onCreateAccount: (email: String, password: String) -> Unit,
     onForgotPassword: (email: String) -> Unit,
+    /** Debug builds only: opens the battery screen without an account. Null hides the button. */
+    onBatteryTest: (() -> Unit)? = null,
 ) {
     var email by rememberSaveable { mutableStateOf("") }
     var pass by rememberSaveable { mutableStateOf("") }
@@ -186,6 +188,19 @@ fun LoginScreen(
                 "set it up before the phone goes missing. it can't help after.",
                 style = type.bodySmall, color = b.muted,
             )
+
+            if (onBatteryTest != null) {
+                Spacer(Modifier.height(24.dp))
+                BrutalButton(
+                    "test the battery screen", onClick = onBatteryTest,
+                    modifier = Modifier.fillMaxWidth(), color = Hazard, icon = R.drawable.ic_battery,
+                )
+                Text(
+                    "test build only. no account needed: starts location tracking so the app has something to " +
+                        "measure, and keeps the numbers on this phone.",
+                    Modifier.padding(top = 6.dp), style = type.bodySmall, color = b.muted,
+                )
+            }
         }
     }
 }

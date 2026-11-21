@@ -116,6 +116,12 @@ async function firebaseBackend() {
     ),
     watchLocations: (id, cb) => sub(id, "locations", 60, (v) => ({ lat: v.lat, lng: v.lng, accuracy: v.accuracy, time: date(v.time) }))(cb),
     watchEvents: (id, cb) => sub(id, "events", 40, (v) => ({ type: v.type, photoPath: v.photoPath || null, time: date(v.time) }))(cb),
+    // One summary per finished day, written by the phone itself (app/…/battery/). Newest first.
+    watchBattery: (id, cb) => fs.onSnapshot(
+      fs.query(fs.collection(db, "devices", id, "battery"), fs.orderBy("day", "desc"), fs.limit(7)),
+      (snap) => cb(snap.docs.map((d) => batteryDay(d.data()))),
+      (err) => toast(err.message),
+    ),
     photoUrl: (path) => st.getDownloadURL(st.ref(storage, path)),
     send: (id, cmd, message = "") =>
       fs.addDoc(fs.collection(db, "devices", id, "commands"), { cmd, message, time: fs.serverTimestamp() }),
@@ -151,6 +157,20 @@ function demoBackend() {
       ] : []);
       return () => {};
     },
+    watchBattery: (id, cb) => {
+      const stolen = id === devices[0].id;
+      cb(Array.from({ length: 6 }, (_, i) => {
+        const day = new Date(Date.now() - (i + 1) * 864e5).toISOString().slice(0, 10);
+        const gps = stolen && i < 1 ? 38 : 0.6, cpu = stolen && i < 1 ? 9.4 : 1.1 + i * 0.1;
+        return batteryDay({
+          day, totalMah: gps + cpu + 0.9, measuredMah: 0.5,
+          parts: { location: gps, cpu, mobile: 0.5, wifi: 0.2, bluetooth: 0, camera: stolen && i < 1 ? 0.2 : 0, wakelocks: 0.1, audio: 0 },
+          counts: { fixesHigh: stolen && i < 1 ? 140 : 0, fixesBalanced: 10, stolenMinutes: stolen && i < 1 ? 1380 : 0, locateBursts: 0, photos: stolen && i < 1 ? 3 : 0, alarmSeconds: 0 },
+          phoneDropPct: 20 + i * 3,
+        });
+      }));
+      return () => {};
+    },
     photoUrl: async () => shot,
     send: async (id, cmd) => {
       const d = devices.find((x) => x.id === id);
@@ -163,7 +183,7 @@ function demoBackend() {
 
 // ---------------------------------------------------------------- UI
 
-let api, user = null, devices = [], selected = null, locations = [], events = [];
+let api, user = null, devices = [], selected = null, locations = [], events = [], battery = [];
 let stopDevices = () => {}, stopDetail = () => {};
 let map = null, mapLayer = null, mapFor = null, mapNode = null; // mapNode is reused across renders so Leaflet keeps its state
 
@@ -174,12 +194,13 @@ function show(view) {
 function select(id) {
   if (id === selected) return;
   selected = id;
-  locations = []; events = [];
+  locations = []; events = []; battery = [];
   stopDetail();
   if (id) {
     const a = api.watchLocations(id, (l) => { locations = l; renderDetail(); });
     const b = api.watchEvents(id, (e) => { events = e; renderDetail(); });
-    stopDetail = () => { a(); b(); };
+    const c = api.watchBattery(id, (days) => { battery = days; renderDetail(); });
+    stopDetail = () => { a(); b(); c(); };
   }
   renderDevices();
   renderDetail();
@@ -313,8 +334,52 @@ function renderDetail() {
       return li;
     }) : el("li", {}, el("span", { class: "empty" }, "nothing yet. SIM swaps, wrong unlock attempts and power-offs land here."))));
 
-  root.replaceChildren(hero, mapBox, actions, el("div", { class: "cols" }, info, history), feed);
+  root.replaceChildren(hero, mapBox, actions, el("div", { class: "cols" }, info, history), feed, batteryBox());
   drawMap(d);
+}
+
+const PART_LABELS = {
+  location: "location", cpu: "processor", mobile: "mobile data", wifi: "wifi", bluetooth: "bluetooth",
+  camera: "camera", wakelocks: "keeping awake", audio: "sound + alarm",
+};
+
+/** Keeps only the fields the page shows, as plain numbers. */
+function batteryDay(v) {
+  const num = (x) => (typeof x === "number" && isFinite(x) ? x : 0);
+  const parts = Object.entries(v.parts || {}).filter(([k]) => k in PART_LABELS).map(([k, mah]) => ({ key: k, mah: num(mah) }));
+  return {
+    day: String(v.day || ""), totalMah: num(v.totalMah), measuredMah: num(v.measuredMah), parts,
+    counts: v.counts || {}, phoneDropPct: typeof v.phoneDropPct === "number" ? v.phoneDropPct : null,
+  };
+}
+
+const mah = (v) => (v <= 0 ? "0" : v < 0.1 ? "under 0.1" : v < 10 ? v.toFixed(1) : String(Math.round(v)));
+
+/** This app's own battery use per finished day, as the phone measured or estimated it. */
+function batteryBox() {
+  const top = Math.max(...battery.map((d) => d.totalMah), 0) || 1;
+  const label = (day) => new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }).toLowerCase();
+  return el("div", { class: "box", id: "battery" },
+    el("div", { class: "head" }, el("h3", {}, "battery use"), el("span", { class: "tag" }, "this app only")),
+    el("ul", { class: "list" }, battery.length ? battery.map((d) => {
+      const estimated = d.totalMah - d.measuredMah > 0.005;
+      const biggest = [...d.parts].sort((a, b) => b.mah - a.mah).filter((p) => p.mah > 0).slice(0, 3)
+        .map((p) => `${PART_LABELS[p.key]} ${mah(p.mah)}`).join(" · ");
+      const c = d.counts;
+      const fixes = (c.fixesHigh || 0) + (c.fixesBalanced || 0), mins = c.stolenMinutes || 0;
+      const did = [fixes ? `${fixes} ${fixes === 1 ? "fix" : "fixes"}` : "",
+        mins ? `${mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}` : `${mins} min`} in stolen mode` : "",
+        c.photos ? `${c.photos} ${c.photos === 1 ? "photo" : "photos"}` : ""].filter(Boolean).join(" · ");
+      return el("li", {},
+        el("b", {}, label(d.day)),
+        el("span", { class: "when" }, `${estimated ? "~" : ""}${mah(d.totalMah)} mAh`),
+        el("span", { class: "meter" }, el("span", { class: estimated ? "hazard" : "lime", style: `width: ${Math.max(2, (d.totalMah / top) * 100)}%` })),
+        el("span", { class: "fine" }, [biggest || "nothing used", did, d.phoneDropPct != null ? `whole phone down at least ${Math.round(d.phoneDropPct)}%` : ""]
+          .filter(Boolean).join(" — ")),
+      );
+    }) : el("li", {}, el("span", { class: "empty" }, "no days yet. the phone sends each finished day the day after; today is in the app."))),
+    el("p", { class: "fine pad-x" }, "~ means estimated from how long each part was in use, not measured. the app's battery screen explains what's counted."),
+  );
 }
 
 function authMessage(err) {
@@ -375,7 +440,7 @@ async function start() {
   api.onUser((u) => {
     user = u;
     stopDevices(); stopDetail();
-    devices = []; selected = null; map = null; mapNode = null; locations = []; events = [];
+    devices = []; selected = null; map = null; mapNode = null; locations = []; events = []; battery = [];
     // Clear the page itself, not just the variables: a signed-out tab must hold none of the last account's data.
     renderDevices(); renderDetail();
     if (!u) return show("login");

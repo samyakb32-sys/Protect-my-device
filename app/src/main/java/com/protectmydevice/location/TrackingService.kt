@@ -23,6 +23,8 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.protectmydevice.R
+import com.protectmydevice.battery.BatteryCollector
+import com.protectmydevice.battery.Key
 import com.protectmydevice.data.DeviceRepository
 import com.protectmydevice.data.StolenState
 import com.protectmydevice.security.ThiefPhotoService
@@ -46,6 +48,8 @@ class TrackingService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val settle = Runnable { requestUpdates(urgent = false) }
     private var receiversRegistered = false
+    /** Which accuracy the current request asked for, so each fix is counted under the right kind. */
+    @Volatile private var highAccuracy = false
 
     private fun battery() = (getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
         .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
@@ -54,7 +58,15 @@ class TrackingService : Service() {
         override fun onLocationResult(result: LocationResult) {
             val loc = result.lastLocation ?: return
             val battery = battery()
-            scope.launch { runCatching { repo.pushLocation(loc, battery) } }
+            val fixes = result.locations.size.toDouble()
+            val key = if (highAccuracy) Key.FIX_HIGH else Key.FIX_BALANCED
+            scope.launch {
+                // Battery report: piggybacks on this check-in (the phone is awake anyway); skipped if a reading is recent.
+                // Before the upload, which can wait a long time for a network.
+                runCatching { BatteryCollector.note(this@TrackingService, key, fixes) }
+                runCatching { BatteryCollector.collect(this@TrackingService) }
+                runCatching { repo.pushLocation(loc, battery) }
+            }
         }
     }
 
@@ -68,7 +80,11 @@ class TrackingService : Service() {
     private val systemEvents = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_SHUTDOWN -> lastGasp("POWERING_OFF")
+                Intent.ACTION_SHUTDOWN -> {
+                    lastGasp("POWERING_OFF")
+                    // The system resets this app's battery counters on reboot: take the last reading first.
+                    runCatching { BatteryCollector.collect(context, force = true) }
+                }
                 Intent.ACTION_BATTERY_LOW -> { lastGasp("BATTERY_LOW"); burst() }
                 Intent.ACTION_AIRPLANE_MODE_CHANGED -> if (intent.getBooleanExtra("state", false)) {
                     lastGasp("AIRPLANE_MODE_ON")
@@ -118,6 +134,7 @@ class TrackingService : Service() {
 
     /** A fix every 15 seconds for two minutes, then back to the regular pace. */
     private fun burst() {
+        scope.launch { runCatching { BatteryCollector.note(this@TrackingService, Key.LOCATE_BURSTS) } }
         handler.removeCallbacks(settle)
         requestUpdates(urgent = true)
         handler.postDelayed(settle, URGENT_WINDOW_MS)
@@ -133,6 +150,7 @@ class TrackingService : Service() {
         }
         // Stolen mode spends battery on GPS-grade fixes; day to day it stays on the cheap setting.
         val priority = if (urgent || stolen) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        highAccuracy = priority == Priority.PRIORITY_HIGH_ACCURACY
         val request = LocationRequest.Builder(priority, interval)
             .setMinUpdateIntervalMillis(interval / 2)
             .build()
